@@ -176,7 +176,9 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenLoginModal }) => {
                       </div>
                     </div>
                   </div>
+                  
                 ))}
+                
 
                 {/* 2. Pending Template Revisions */}
                 {pendingTemplates.map(t => (
