@@ -15,7 +15,7 @@ export const LabelPrintingView: React.FC = () => {
   const approvedTemplates = templates.filter(t => t.status === 'Approved/Effective');
   const [templateId, setTemplateId] = useState(approvedTemplates[0]?.id || '');
   const [labelType, setLabelType] = useState<LabelType>('Original');
-  const [selectedDrums, setSelectedDrums] = useState<number[]>([1,2,3,4,5]);
+  const [selectedDrums, setSelectedDrums] = useState<number[]>([1, 2, 3, 4, 5]);
 
   const [snapshots, setSnapshots] = useState<LabelSnapshot[]>([]);
   const [snapIdx, setSnapIdx] = useState(0);
@@ -28,8 +28,8 @@ export const LabelPrintingView: React.FC = () => {
   const [damageReason, setDamageReason] = useState('');
   const [disposition, setDisposition] = useState('Scrapped & Destroyed under QA Supervision');
 
-  const toggle = (n: number) => setSelectedDrums(p => p.includes(n) ? p.filter(x => x !== n) : [...p, n].sort((a,b) => a-b));
-  const selectRange = (s: number, e: number) => setSelectedDrums(Array.from({length: e-s+1}, (_, i) => s+i));
+  const toggle = (n: number) => setSelectedDrums(p => p.includes(n) ? p.filter(x => x !== n) : [...p, n].sort((a, b) => a - b));
+  const selectRange = (s: number, e: number) => setSelectedDrums(Array.from({ length: e - s + 1 }, (_, i) => s + i));
 
   const handleGenerate = () => {
     if (!batchId || !templateId || selectedDrums.length === 0) return;
@@ -69,10 +69,26 @@ export const LabelPrintingView: React.FC = () => {
             </div>
 
             <FormField label="Active Production Batch" required>
-              <Select value={batchId} onChange={e => { setBatchId(e.target.value); setSelectedDrums([1,2,3,4,5]); }}>
-                {activeBatches.map(b => <option key={b.id} value={b.id}>{b.batchNumber}</option>)}
+              <Select value={batchId} onChange={e => { setBatchId(e.target.value); setSelectedDrums([1, 2, 3, 4, 5]); }}>
+                {activeBatches.map(b => (
+                  <option key={b.id} value={b.id}>
+                    {b.batchNumber} {b.status === 'Pending' ? '(🔒 Awaiting QA Approval)' : ''}
+                  </option>
+                ))}
               </Select>
             </FormField>
+
+            {selectedBatch?.status === 'Pending' && (
+              <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900 flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-bold">🔒 QA Line Clearance Required</div>
+                  <div className="text-[11px] text-amber-800 mt-0.5">
+                    This batch has not been authorized for packaging by the QA Supervisor yet. Printing is locked.
+                  </div>
+                </div>
+              </div>
+            )}
 
             <FormField label="Approved Template Revision">
               <Select value={templateId} onChange={e => setTemplateId(e.target.value)}>
@@ -95,8 +111,8 @@ export const LabelPrintingView: React.FC = () => {
             <div className="pt-3 border-t border-slate-100 space-y-2">
               <div className="font-bold text-xs text-slate-800">Quick Range Select</div>
               <div className="grid grid-cols-3 gap-1.5 text-[11px]">
-                <button type="button" onClick={() => selectRange(1,5)} className="py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-mono font-bold text-slate-800 border border-slate-200 transition">1–5</button>
-                <button type="button" onClick={() => selectRange(1,10)} className="py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-mono font-bold text-slate-800 border border-slate-200 transition">1–10</button>
+                <button type="button" onClick={() => selectRange(1, 5)} className="py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-mono font-bold text-slate-800 border border-slate-200 transition">1–5</button>
+                <button type="button" onClick={() => selectRange(1, 10)} className="py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-mono font-bold text-slate-800 border border-slate-200 transition">1–10</button>
                 <button type="button" onClick={() => { if (selectedBatch) selectRange(1, selectedBatch.totalDrums); }}
                   className="py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-mono font-bold text-slate-800 border border-slate-200 transition">All ({selectedBatch?.totalDrums})</button>
               </div>
@@ -105,13 +121,18 @@ export const LabelPrintingView: React.FC = () => {
             <button
               type="button"
               onClick={handleGenerate}
-              disabled={selectedDrums.length === 0}
-              style={{ backgroundColor: '#2563eb', color: '#ffffff' }}
+              disabled={selectedDrums.length === 0 || selectedBatch?.status === 'Pending'}
+              style={{
+                backgroundColor: selectedBatch?.status === 'Pending' ? '#94a3b8' : '#2563eb',
+                color: '#ffffff'
+              }}
               className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold
                          shadow-md flex items-center justify-center gap-2 disabled:opacity-40 border border-blue-700 transition"
             >
               <Barcode className="w-4 h-4 text-white" />
-              <span className="text-white font-bold">Generate & Print ({selectedDrums.length} Drums)</span>
+              <span className="text-white font-bold">
+                {selectedBatch?.status === 'Pending' ? 'Printing Locked (QA Clearance Required)' : `Generate & Print (${selectedDrums.length} Drums)`}
+              </span>
             </button>
             <div className="text-[11px] text-slate-500 font-medium text-center -mt-3">Real GS1 Mod-10 algorithm · Immutable snapshot</div>
           </Card>
@@ -141,12 +162,11 @@ export const LabelPrintingView: React.FC = () => {
 
                   return (
                     <div key={d.drumNumber}
-                      className={`p-3 rounded-xl border text-center transition text-xs flex flex-col justify-between ${
-                        isDamaged ? 'border-rose-300 bg-rose-50/80 shadow-xs' :
-                        isChecked ? 'border-2 border-brand-500 bg-blue-50/90 shadow-sm ring-1 ring-brand-500/20' :
-                        isPrinted ? 'border-emerald-300 bg-emerald-50/70 shadow-xs' :
-                        'border-slate-300 bg-white hover:border-brand-400 hover:bg-slate-50 shadow-xs'
-                      }`}>
+                      className={`p-3 rounded-xl border text-center transition text-xs flex flex-col justify-between ${isDamaged ? 'border-rose-300 bg-rose-50/80 shadow-xs' :
+                          isChecked ? 'border-2 border-brand-500 bg-blue-50/90 shadow-sm ring-1 ring-brand-500/20' :
+                            isPrinted ? 'border-emerald-300 bg-emerald-50/70 shadow-xs' :
+                              'border-slate-300 bg-white hover:border-brand-400 hover:bg-slate-50 shadow-xs'
+                        }`}>
                       <div className="cursor-pointer" onClick={() => toggle(d.drumNumber)}>
                         <div className={`font-black text-sm font-mono ${isChecked ? 'text-brand-900' : isDamaged ? 'text-rose-800' : isPrinted ? 'text-emerald-800' : 'text-slate-900'}`}>
                           #{d.drumNumber}
@@ -176,6 +196,19 @@ export const LabelPrintingView: React.FC = () => {
                           </button>
                         </div>
                       )}
+
+                      {isDamaged && (
+                        <div className="mt-2.5 pt-2 border-t border-rose-200/60 flex items-center justify-center">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setReprintDrum(d); setReprintReason(`Replacement for damaged label incident: ${d.damagedReason || 'Damaged label'}`); }}
+                            className="px-2 py-0.5 rounded text-[10px] font-bold transition flex items-center gap-1 bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300 shadow-xs cursor-pointer"
+                            title="Authorize Replacement Reprint for Damaged Drum"
+                          >
+                            <RefreshCw className="w-2.5 h-2.5" /> Reprint Replacement
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -192,21 +225,46 @@ export const LabelPrintingView: React.FC = () => {
       {/* Label Preview Modal */}
       {snapshots.length > 0 && (
         <Modal onClose={() => setSnapshots([])} title={`Label Preview — ${snapshots[snapIdx]?.batchNumber}`}
-          subtitle={`Drum ${snapshots[snapIdx]?.drumNumber} · ${snapIdx+1} of ${snapshots.length}`} maxW="max-w-lg">
-          <ThermalLabelSimulator label={snapshots[snapIdx]} onPrint={() => window.print()} />
-          {snapshots.length > 1 && (
-            <div className="flex items-center justify-between pt-4 border-t border-slate-100 mt-4">
-              <button disabled={snapIdx===0} onClick={() => setSnapIdx(p=>Math.max(0,p-1))}
-                className="flex items-center gap-1 px-3 py-1.5 border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 font-bold rounded-xl text-xs disabled:opacity-30 transition shadow-xs">
-                <ChevronLeft className="w-4 h-4" /> Prev
-              </button>
-              <span className="text-xs font-mono text-slate-800 font-bold">Drum #{snapshots[snapIdx]?.drumNumber}</span>
-              <button disabled={snapIdx===snapshots.length-1} onClick={() => setSnapIdx(p=>Math.min(snapshots.length-1,p+1))}
-                className="flex items-center gap-1 px-3 py-1.5 border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 font-bold rounded-xl text-xs disabled:opacity-30 transition shadow-xs">
-                Next <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          )}
+          subtitle={`Drum ${snapshots[snapIdx]?.drumNumber} · ${snapIdx + 1} of ${snapshots.length}`} maxW="max-w-lg">
+          <ThermalLabelSimulator
+            label={snapshots[snapIdx]}
+            onPrint={() => window.print()}
+            onClose={() => setSnapshots([])}
+          />
+          <div className="flex items-center justify-between pt-4 border-t border-slate-100 mt-4">
+            {snapshots.length > 1 ? (
+              <>
+                <button disabled={snapIdx === 0} onClick={() => setSnapIdx(p => Math.max(0, p - 1))}
+                  className="flex items-center gap-1 px-3 py-1.5 border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 font-bold rounded-xl text-xs disabled:opacity-30 transition shadow-xs">
+                  <ChevronLeft className="w-4 h-4" /> Prev
+                </button>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono text-slate-800 font-bold">Drum #{snapshots[snapIdx]?.drumNumber}</span>
+                  <button
+                    type="button"
+                    onClick={() => setSnapshots([])}
+                    className="px-2.5 py-1 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg transition"
+                  >
+                    Close
+                  </button>
+                </div>
+                <button disabled={snapIdx === snapshots.length - 1} onClick={() => setSnapIdx(p => Math.min(snapshots.length - 1, p + 1))}
+                  className="flex items-center gap-1 px-3 py-1.5 border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 font-bold rounded-xl text-xs disabled:opacity-30 transition shadow-xs">
+                  Next <ChevronRight className="w-4 h-4" />
+                </button>
+              </>
+            ) : (
+              <div className="w-full flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setSnapshots([])}
+                  className="px-4 py-2 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-xl transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5 text-slate-500" /> Close / Cancel Preview
+                </button>
+              </div>
+            )}
+          </div>
         </Modal>
       )}
 
@@ -227,7 +285,7 @@ export const LabelPrintingView: React.FC = () => {
               <Input value={reprintAuth} onChange={e => setReprintAuth(e.target.value)} required />
             </FormField>
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-              <button type="button" onClick={() => setReprintDrum(null)} className="px-4 py-2 text-xs text-slate-600 rounded-xl">Cancel</button>
+              <button type="button" onClick={() => setReprintDrum(null)} className="px-4 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl transition">Cancel</button>
               <PrimaryBtn type="submit" icon={<RefreshCw className="w-4 h-4" />}>
                 Authorize Reprint #{reprintDrum.reprintCount + 1}
               </PrimaryBtn>
@@ -254,10 +312,14 @@ export const LabelPrintingView: React.FC = () => {
               </Select>
             </FormField>
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-              <button type="button" onClick={() => setDamagedDrum(null)} className="px-4 py-2 text-xs text-slate-600 rounded-xl">Cancel</button>
-              <button type="submit" disabled={!damageReason.trim()}
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-semibold transition disabled:opacity-40 flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4" /> Commit Damaged Record
+              <button type="button" onClick={() => setDamagedDrum(null)} className="px-4 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl transition">Cancel</button>
+              <button
+                type="submit"
+                disabled={!damageReason.trim()}
+                style={{ backgroundColor: '#e11d48', color: '#ffffff' }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition disabled:opacity-40 flex items-center gap-2 border border-rose-700 shadow-sm"
+              >
+                <AlertTriangle className="w-4 h-4 text-white" /> Commit Damaged Record
               </button>
             </div>
           </form>

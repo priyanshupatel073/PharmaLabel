@@ -123,11 +123,7 @@ export const DashboardView: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-<<<<<<< HEAD
             Good Morning, {currentUser.name.split(' ')[0]}!
-=======
-            Good Morning, {currentUser.name.split(' ')[0]}! 👋
->>>>>>> 19f7870 (Initial commit: PharmLabel Pro serialization prototype)
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">
             Here's what's happening in <strong className="text-slate-700">Harihar Pharma Pvt. Ltd.</strong> today.

@@ -1,17 +1,19 @@
 import React from 'react';
 import { LabelSnapshot } from '../types';
 import { generateCode128SvgBars, generateMatrixGrid } from '../utils/barcode';
-import { Printer, Download, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { Printer, Download, CheckCircle2, ShieldCheck, X } from 'lucide-react';
 
 interface ThermalLabelProps {
   label: LabelSnapshot;
   onPrint?: () => void;
+  onClose?: () => void;
   showActions?: boolean;
 }
 
 export const ThermalLabelSimulator: React.FC<ThermalLabelProps> = ({
   label,
   onPrint,
+  onClose,
   showActions = true
 }) => {
   // Generate Code-128 barcode pattern for SSCC
@@ -194,18 +196,31 @@ export const ThermalLabelSimulator: React.FC<ThermalLabelProps> = ({
 
       {/* Action Buttons for User Interaction */}
       {showActions && (
-        <div className="mt-4 flex items-center gap-3">
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-2.5 max-w-[420px] w-full">
           <button
             onClick={handleBrowserPrint}
             style={{ backgroundColor: '#2563eb', color: '#ffffff' }}
-            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md border border-blue-700 transition active:scale-95"
+            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md border border-blue-700 transition active:scale-95 cursor-pointer"
           >
             <Printer className="w-4 h-4 text-white" />
             <span className="text-white font-bold">Send to Thermal Printer (Browser Print)</span>
           </button>
-          <div className="flex items-center gap-1.5 text-xs text-emerald-800 font-bold bg-emerald-50 px-3.5 py-2 rounded-xl border border-emerald-300 shadow-xs">
+          
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 text-xs font-bold rounded-xl border border-slate-300 transition active:scale-95 shadow-xs cursor-pointer"
+              title="Close / Cancel preview"
+            >
+              <X className="w-4 h-4 text-slate-500" />
+              <span>Close / Cancel</span>
+            </button>
+          )}
+
+          <div className="flex items-center gap-1.5 text-xs text-emerald-800 font-bold bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-300 shadow-xs">
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            Verified GS1 Mod-10 Compliant
+            <span>Verified GS1 Mod-10</span>
           </div>
         </div>
       )}

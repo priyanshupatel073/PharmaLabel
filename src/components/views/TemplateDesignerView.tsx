@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { LabelTemplate, LabelDimension, TemplateStatus, LabelSnapshot } from '../../types';
 import { ThermalLabelSimulator } from '../ThermalLabelSimulator';
-import { PageHeader, Card, PrimaryBtn, SecondaryBtn, StatusBadge, Modal, FormField, Textarea } from '../ui';
+import { PageHeader, Card, PrimaryBtn, SecondaryBtn, StatusBadge, Modal, FormField, Textarea, Select, Input } from '../ui';
 import {
   FileCode,
   CheckCircle,
@@ -14,15 +14,70 @@ import {
   Layers,
   Tag,
   Zap,
+  Send,
+  Plus,
+  Edit3,
 } from 'lucide-react';
 
 export const TemplateDesignerView: React.FC = () => {
-  const { templates, currentUser, createTemplateRevision, approveTemplateRevision, companySettings } = useApp();
+  const { templates, currentUser, addTemplate, updateTemplate, toggleTemplateElement, createTemplateRevision, updateTemplateDimension, submitTemplateForReview, approveTemplateRevision, companySettings } = useApp();
 
-  const [selectedTemplate, setSelectedTemplate] = useState<LabelTemplate>(templates[0] || null);
+  const [selectedId, setSelectedId] = useState<string>(templates[0]?.id || '');
+  const selectedTemplate = templates.find(t => t.id === selectedId) || templates[0] || null;
   const [previewSnapshot, setPreviewSnapshot] = useState<LabelSnapshot | null>(null);
   const [newRevisionSummary, setNewRevisionSummary] = useState('');
+  const [newDimension, setNewDimension] = useState<LabelDimension>('4x6');
   const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false);
+
+  // New Template Modal state
+  const [isNewTemplateModalOpen, setIsNewTemplateModalOpen] = useState(false);
+  const [newTplName, setNewTplName] = useState('');
+  const [newTplDimension, setNewTplDimension] = useState<LabelDimension>('4x6');
+  const [newTplSummary, setNewTplSummary] = useState('');
+
+  // Edit Template Modal state
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editDimension, setEditDimension] = useState<LabelDimension>('4x6');
+  const [editSummary, setEditSummary] = useState('');
+
+  const openEditModal = (tpl: LabelTemplate) => {
+    setEditName(tpl.name);
+    setEditDimension(tpl.dimension);
+    setEditSummary(tpl.changeSummary || '');
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedTemplate || !editName.trim()) return;
+    updateTemplate(selectedTemplate.id, {
+      name: editName.trim(),
+      dimension: editDimension,
+      changeSummary: editSummary.trim()
+    });
+    setIsEditModalOpen(false);
+  };
+
+  const handleCreateNewTemplate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTplName.trim()) return;
+    addTemplate({
+      name: newTplName.trim(),
+      dimension: newTplDimension,
+      changeSummary: newTplSummary.trim() || 'New template created'
+    });
+    setIsNewTemplateModalOpen(false);
+    setNewTplName('');
+    setNewTplSummary('');
+  };
+
+  const openRevisionModal = () => {
+    if (selectedTemplate) {
+      setNewDimension(selectedTemplate.dimension);
+      setIsRevisionModalOpen(true);
+    }
+  };
 
   const handleOpenPreview = (tpl: LabelTemplate) => {
     const preview: LabelSnapshot = {
@@ -57,7 +112,7 @@ export const TemplateDesignerView: React.FC = () => {
 
   const handleCreateRevisionSubmit = () => {
     if (!selectedTemplate || !newRevisionSummary.trim()) return;
-    createTemplateRevision(selectedTemplate.id, newRevisionSummary);
+    createTemplateRevision(selectedTemplate.id, newRevisionSummary, newDimension);
     setIsRevisionModalOpen(false);
     setNewRevisionSummary('');
   };
@@ -76,14 +131,24 @@ export const TemplateDesignerView: React.FC = () => {
         subtitle="Manage validated thermal label formats with immutable revision control. Only Approved/Effective templates can be used in production printing."
         badge={{ label: `${templates.length} Revisions`, color: 'purple' }}
         action={
-          selectedTemplate && selectedTemplate.status === 'Approved/Effective' ? (
-            <PrimaryBtn
-              icon={<GitBranch className="w-4 h-4" />}
-              onClick={() => setIsRevisionModalOpen(true)}
-            >
-              Create New Revision
-            </PrimaryBtn>
-          ) : undefined
+          <div className="flex items-center gap-2">
+            {currentUser.role !== 'Operator' && (
+              <PrimaryBtn
+                icon={<Plus className="w-4 h-4" />}
+                onClick={() => setIsNewTemplateModalOpen(true)}
+              >
+                + New Template
+              </PrimaryBtn>
+            )}
+            {selectedTemplate && selectedTemplate.status === 'Approved/Effective' && (
+              <SecondaryBtn
+                icon={<GitBranch className="w-4 h-4" />}
+                onClick={openRevisionModal}
+              >
+                Branch Revision
+              </SecondaryBtn>
+            )}
+          </div>
         }
       />
 
@@ -121,7 +186,7 @@ export const TemplateDesignerView: React.FC = () => {
               return (
                 <div
                   key={tpl.id}
-                  onClick={() => setSelectedTemplate(tpl)}
+                  onClick={() => setSelectedId(tpl.id)}
                   className={`p-4 rounded-2xl cursor-pointer transition-all duration-150 group shadow-xs ${
                     isSelected
                       ? 'bg-indigo-50/90 border-2 border-indigo-500 shadow-sm ring-1 ring-indigo-500/20'
@@ -166,29 +231,86 @@ export const TemplateDesignerView: React.FC = () => {
                       </h3>
                       <StatusBadge status={selectedTemplate.status} />
                     </div>
-                    <div className="text-xs text-slate-500 font-mono mt-1 flex items-center gap-3">
+                    <div className="text-xs text-slate-500 font-mono mt-1 flex items-center gap-3 flex-wrap">
                       <span>Rev <strong className="text-slate-800">{selectedTemplate.revision}</strong></span>
                       <span>·</span>
-                      <span>Dimension: <strong className="text-slate-800">{selectedTemplate.dimension} inches</strong></span>
+                      {selectedTemplate.status === 'Draft' && (currentUser.role === 'Admin' || currentUser.role === 'SuperAdmin' || currentUser.role === 'Supervisor') ? (
+                        <span className="inline-flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-lg text-xs font-bold text-indigo-900">
+                          Dimension:
+                          <select
+                            value={selectedTemplate.dimension}
+                            onChange={(e) => updateTemplateDimension(selectedTemplate.id, e.target.value as LabelDimension)}
+                            className="bg-white border border-indigo-300 rounded px-1.5 py-0.5 text-xs text-indigo-950 font-mono font-bold focus:outline-none cursor-pointer"
+                          >
+                            <option value="4x6">4 × 6" (Standard Drum)</option>
+                            <option value="6x4">6 × 4" (Wide Shipper)</option>
+                            <option value="4x4">4 × 4" (Square Pail)</option>
+                            <option value="3x2">3 × 2" (Small Container)</option>
+                          </select>
+                        </span>
+                      ) : (
+                        <span>Dimension: <strong className="text-slate-800">{selectedTemplate.dimension} inches</strong></span>
+                      )}
                       <span>·</span>
                       <span>Created: {selectedTemplate.createdAt}</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap">
                     <SecondaryBtn
                       icon={<Eye className="w-4 h-4" />}
                       onClick={() => handleOpenPreview(selectedTemplate)}
                     >
                       Watermarked Preview
                     </SecondaryBtn>
-                    {selectedTemplate.status === 'In Review' &&
+
+                    {/* Edit Details for Draft or In Review */}
+                    {selectedTemplate.status !== 'Approved/Effective' && (
+                      <SecondaryBtn
+                        icon={<Edit3 className="w-4 h-4" />}
+                        onClick={() => openEditModal(selectedTemplate)}
+                      >
+                        Edit Details
+                      </SecondaryBtn>
+                    )}
+
+                    {/* For Admin: If Draft, show Submit for QA Review */}
+                    {selectedTemplate.status === 'Draft' && currentUser.role === 'Admin' && (
+                      <PrimaryBtn
+                        icon={<Send className="w-4 h-4" />}
+                        onClick={() => submitTemplateForReview(selectedTemplate.id)}
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        Submit for QA Review
+                      </PrimaryBtn>
+                    )}
+
+                    {/* For Admin: If In Review, show Awaiting QA Approval badge */}
+                    {selectedTemplate.status === 'In Review' && currentUser.role === 'Admin' && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-2 bg-amber-50 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold shadow-xs">
+                        <Clock className="w-3.5 h-3.5 text-amber-600" /> Awaiting QA Approval
+                      </span>
+                    )}
+
+                    {/* For Supervisor & SuperAdmin: Show APPROVE FOR PRODUCTION (Never show Submit to QA) */}
+                    {(selectedTemplate.status === 'In Review' || selectedTemplate.status === 'Draft') &&
                       (currentUser.role === 'Supervisor' || currentUser.role === 'SuperAdmin') && (
                       <PrimaryBtn
                         icon={<ShieldCheck className="w-4 h-4" />}
                         onClick={() => approveTemplateRevision(selectedTemplate.id)}
-                        className="!from-emerald-500 !to-emerald-600"
+                        style={{ backgroundColor: '#059669', color: '#ffffff' }}
+                        className="bg-emerald-600 hover:bg-emerald-700 border-emerald-700 shadow-sm"
                       >
                         Approve for Production
+                      </PrimaryBtn>
+                    )}
+
+                    {/* If Approved, show Branch Revision button */}
+                    {selectedTemplate.status === 'Approved/Effective' && (
+                      <PrimaryBtn
+                        icon={<GitBranch className="w-4 h-4" />}
+                        onClick={openRevisionModal}
+                      >
+                        Branch Revision
                       </PrimaryBtn>
                     )}
                   </div>
@@ -196,27 +318,59 @@ export const TemplateDesignerView: React.FC = () => {
 
                 {/* Elements Configuration Matrix */}
                 <div className="mt-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Tag className="w-3.5 h-3.5 text-slate-400" />
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                      Configured Layout Elements ({selectedTemplate.elements.length})
-                    </h4>
+                  <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <Tag className="w-3.5 h-3.5 text-slate-400" />
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                        Configured Layout Elements ({selectedTemplate.elements.length})
+                      </h4>
+                    </div>
+                    {selectedTemplate.status !== 'Approved/Effective' && (
+                      <span className="text-[10px] text-indigo-700 font-bold bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md">
+                        💡 Click badge to toggle ON/OFF
+                      </span>
+                    )}
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     {selectedTemplate.elements.map((el) => (
                       <div
                         key={el.id}
-                        className="p-3 rounded-xl border border-slate-200 bg-slate-50/60 flex items-center justify-between group hover:border-indigo-200 hover:bg-indigo-50/30 transition"
+                        className={`p-3 rounded-xl border flex items-center justify-between transition ${
+                          el.enabled
+                            ? 'border-slate-200 bg-white hover:border-indigo-200 hover:bg-indigo-50/20'
+                            : 'border-slate-200/60 bg-slate-100/60 opacity-60'
+                        }`}
                       >
                         <div>
-                          <div className="text-xs font-semibold text-slate-900">{el.name}</div>
+                          <div className={`text-xs font-semibold ${el.enabled ? 'text-slate-900' : 'text-slate-500 line-through'}`}>
+                            {el.name}
+                          </div>
                           <div className="text-[10px] text-slate-400 font-mono mt-0.5">
                             {el.fontSize.toUpperCase()}{el.isBold ? ' · BOLD' : ''}{el.barcodeType ? ` · ${el.barcodeType.toUpperCase()}` : ''}
                           </div>
                         </div>
-                        <span className="text-[10px] font-mono font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200">
-                          ENABLED
-                        </span>
+                        {selectedTemplate.status !== 'Approved/Effective' ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleTemplateElement(selectedTemplate.id, el.id)}
+                            className={`text-[10px] font-mono font-bold px-2.5 py-1 rounded-full border transition cursor-pointer shadow-xs ${
+                              el.enabled
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                                : 'bg-slate-200 text-slate-600 border-slate-300 hover:bg-slate-300'
+                            }`}
+                            title="Click to toggle element ON or OFF"
+                          >
+                            {el.enabled ? '✓ ENABLED' : '✕ DISABLED'}
+                          </button>
+                        ) : (
+                          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+                            el.enabled
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : 'bg-slate-100 text-slate-400 border-slate-200'
+                          }`}>
+                            {el.enabled ? 'ENABLED' : 'DISABLED'}
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -288,11 +442,22 @@ export const TemplateDesignerView: React.FC = () => {
             <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-200 text-xs text-indigo-700">
               The existing <strong>Rev {selectedTemplate.revision}</strong> will continue serving active production until the new revision is reviewed and approved by Supervisor QA.
             </div>
+            <FormField label="Label Stock Dimension / Size" hint="Standard thermal sticker roll format">
+              <Select
+                value={newDimension}
+                onChange={(e) => setNewDimension(e.target.value as LabelDimension)}
+              >
+                <option value="4x6">4 × 6 inches (Standard API Fibre Drum — Portrait)</option>
+                <option value="6x4">6 × 4 inches (Wide Shipper Box — Landscape)</option>
+                <option value="4x4">4 × 4 inches (Square Pail / Jerrycan)</option>
+                <option value="3x2">3 × 2 inches (Small Container / Specimen Bottle)</option>
+              </Select>
+            </FormField>
             <FormField label="Summary of Proposed Changes" required>
               <Textarea
                 value={newRevisionSummary}
                 onChange={(e) => setNewRevisionSummary(e.target.value)}
-                placeholder="e.g. Enlarged 2D matrix size and adjusted line item spacing for high-speed scanners"
+                placeholder="e.g. Changed label dimension to 6x4 inches for wide shippers and updated 2D matrix"
                 rows={3}
               />
             </FormField>
@@ -307,6 +472,107 @@ export const TemplateDesignerView: React.FC = () => {
               </PrimaryBtn>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {/* Create Brand New Template Modal */}
+      {isNewTemplateModalOpen && (
+        <Modal
+          onClose={() => setIsNewTemplateModalOpen(false)}
+          title="Register Brand New Label Template"
+          subtitle="Define a new container format (Starts as Rev 1.0 Draft for QA review)"
+          maxW="max-w-md"
+        >
+          <form onSubmit={handleCreateNewTemplate} className="space-y-4">
+            <FormField label="Template Design Name" required hint="e.g. Domestic Shipper Box Standard, Square Pail 4x4">
+              <Input
+                value={newTplName}
+                onChange={(e) => setNewTplName(e.target.value)}
+                placeholder="e.g. Domestic Shipper 6x4 Standard"
+                required
+              />
+            </FormField>
+
+            <FormField label="Label Stock Dimension / Size" required hint="Physical thermal label sticker size">
+              <Select
+                value={newTplDimension}
+                onChange={(e) => setNewTplDimension(e.target.value as LabelDimension)}
+              >
+                <option value="4x6">4 × 6 inches (Standard API Fibre Drum — Portrait)</option>
+                <option value="6x4">6 × 4 inches (Wide Shipper Box — Landscape)</option>
+                <option value="4x4">4 × 4 inches (Square Pail / Jerrycan)</option>
+                <option value="3x2">3 × 2 inches (Small Container / Specimen Bottle)</option>
+              </Select>
+            </FormField>
+
+            <FormField label="Intended Packaging Purpose / Notes">
+              <Textarea
+                value={newTplSummary}
+                onChange={(e) => setNewTplSummary(e.target.value)}
+                placeholder="e.g. Designed for secondary outer corrugated packaging of 500Kg batch shipments"
+                rows={2}
+              />
+            </FormField>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <SecondaryBtn type="button" onClick={() => setIsNewTemplateModalOpen(false)}>Cancel</SecondaryBtn>
+              <PrimaryBtn
+                type="submit"
+                disabled={!newTplName.trim()}
+                icon={<Plus className="w-4 h-4" />}
+              >
+                Create Template (Draft)
+              </PrimaryBtn>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Edit Template Details Modal */}
+      {isEditModalOpen && selectedTemplate && (
+        <Modal
+          onClose={() => setIsEditModalOpen(false)}
+          title={`Edit Template: Rev ${selectedTemplate.revision}`}
+          subtitle="Modify name, dimensions, and layout purpose per QA feedback"
+          maxW="max-w-md"
+        >
+          <form onSubmit={handleSaveEdit} className="space-y-4">
+            <FormField label="Template Design Name" required>
+              <Input
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                required
+              />
+            </FormField>
+
+            <FormField label="Label Stock Dimension / Size" required>
+              <Select
+                value={editDimension}
+                onChange={(e) => setEditDimension(e.target.value as LabelDimension)}
+              >
+                <option value="4x6">4 × 6 inches (Standard API Fibre Drum — Portrait)</option>
+                <option value="6x4">6 × 4 inches (Wide Shipper Box — Landscape)</option>
+                <option value="4x4">4 × 4 inches (Square Pail / Jerrycan)</option>
+                <option value="3x2">3 × 2 inches (Small Container / Specimen Bottle)</option>
+              </Select>
+            </FormField>
+
+            <FormField label="Packaging Purpose & QA Revision Notes">
+              <Textarea
+                value={editSummary}
+                onChange={(e) => setEditSummary(e.target.value)}
+                placeholder="Document feedback from Supervisor or reason for update"
+                rows={3}
+              />
+            </FormField>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <SecondaryBtn type="button" onClick={() => setIsEditModalOpen(false)}>Cancel</SecondaryBtn>
+              <PrimaryBtn type="submit">
+                Save Template Changes
+              </PrimaryBtn>
+            </div>
+          </form>
         </Modal>
       )}
     </div>

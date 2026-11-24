@@ -9,7 +9,8 @@ import {
   AuditLog,
   LicenseInfo,
   LabelType,
-  LabelSnapshot
+  LabelSnapshot,
+  LabelDimension
 } from '../types';
 import {
   INITIAL_USERS,
@@ -66,11 +67,18 @@ interface AppContextType {
   createBatch: (batch: Omit<Batch, 'id' | 'createdAt' | 'createdBy' | 'drums'>, drumWeights: { netWeight: number; grossWeight: number; tareWeight: number }[]) => void;
   updateDrumWeight: (batchId: string, drumNumber: number, netWeight: number, grossWeight: number, reason: string) => void;
   markDrumDamaged: (batchId: string, drumNumber: number, reason: string, disposition: string) => void;
+  authorizeBatch: (batchId: string, remarks?: string) => void;
+  completeBatch: (batchId: string, reason?: string) => void;
   
   generateDrumLabels: (batchId: string, drumNumbers: number[], templateId: string, labelType: LabelType) => LabelSnapshot[];
   reprintDrumLabel: (batchId: string, drumNumber: number, reason: string, authorizedBy: string) => LabelSnapshot | null;
   
-  createTemplateRevision: (templateId: string, summary: string) => void;
+  addTemplate: (data: { name: string; dimension: LabelDimension; changeSummary: string }) => void;
+  updateTemplate: (templateId: string, updates: Partial<LabelTemplate>) => void;
+  toggleTemplateElement: (templateId: string, elementId: string) => void;
+  createTemplateRevision: (templateId: string, summary: string, dimension?: LabelDimension) => void;
+  updateTemplateDimension: (templateId: string, dimension: LabelDimension) => void;
+  submitTemplateForReview: (templateId: string) => void;
   approveTemplateRevision: (templateId: string) => void;
 
   exportAuditTrailCsv: () => void;
@@ -383,6 +391,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
+  const authorizeBatch = (batchId: string, remarks?: string) => {
+    setBatches((prev) =>
+      prev.map((b) => {
+        if (b.id !== batchId) return b;
+        logAudit('BATCH_LINE_CLEARANCE', 'Batch Management', {
+          batchRef: b.batchNumber,
+          oldValue: 'Pending',
+          newValue: 'In Progress',
+          reason: remarks || `QA Line Clearance & Packaging Authorization signed by ${currentUser.name} (${currentUser.role})`
+        });
+        return {
+          ...b,
+          status: 'In Progress' as const
+        };
+      })
+    );
+  };
+
+  const completeBatch = (batchId: string, reason?: string) => {
+    setBatches((prev) =>
+      prev.map((b) => {
+        if (b.id !== batchId) return b;
+        logAudit('BATCH_COMPLETED', 'Batch Management', {
+          batchRef: b.batchNumber,
+          oldValue: b.status,
+          newValue: 'Completed',
+          reason: reason || `QA Release & Batch Closure signed by ${currentUser.name} (${currentUser.role})`
+        });
+        return {
+          ...b,
+          status: 'Completed' as const
+        };
+      })
+    );
+  };
+
   const markDrumDamaged = (
     batchId: string,
     drumNumber: number,
@@ -492,19 +536,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setBatches((prev) =>
       prev.map((b) => {
         if (b.id !== batchId) return b;
+        const newDrums = b.drums.map((d) => {
+          const update = updatedDrumsMap.get(d.drumNumber);
+          if (!update) return d;
+          return {
+            ...d,
+            sscc: update.sscc,
+            status: 'Printed' as const,
+            labelGeneratedAt: new Date().toLocaleTimeString()
+          };
+        });
+        const allPrinted = newDrums.every(d => d.status === 'Printed');
         return {
           ...b,
-          status: 'In Progress',
-          drums: b.drums.map((d) => {
-            const update = updatedDrumsMap.get(d.drumNumber);
-            if (!update) return d;
-            return {
-              ...d,
-              sscc: update.sscc,
-              status: 'Printed',
-              labelGeneratedAt: new Date().toLocaleTimeString()
-            };
-          })
+          status: allPrinted ? ('Completed' as const) : ('In Progress' as const),
+          drums: newDrums
         };
       })
     );
@@ -596,7 +642,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return reprintSnapshot;
   };
 
-  const createTemplateRevision = (templateId: string, summary: string) => {
+  const addTemplate = (data: { name: string; dimension: LabelDimension; changeSummary: string }) => {
+    const baseElements = templates[0]?.elements || [];
+    const newTemplate: LabelTemplate = {
+      id: `tpl_${Date.now()}`,
+      name: data.name,
+      dimension: data.dimension,
+      revision: '1.0',
+      status: 'Draft',
+      createdBy: `${currentUser.name} (${currentUser.role})`,
+      createdAt: `${new Date().toISOString().split('T')[0]} ${new Date().toTimeString().split(' ')[0]} IST`,
+      changeSummary: data.changeSummary || 'Initial new template creation',
+      elements: baseElements.map((el) => ({ ...el }))
+    };
+
+    setTemplates((prev) => [newTemplate, ...prev]);
+    logAudit('CREATE_NEW_TEMPLATE', 'Template Management', {
+      newValue: `${data.name} (Rev 1.0, ${data.dimension}")`,
+      reason: data.changeSummary || 'New template registered'
+    });
+  };
+
+  const updateTemplate = (templateId: string, updates: Partial<LabelTemplate>) => {
+    setTemplates((prev) =>
+      prev.map((t) => {
+        if (t.id !== templateId) return t;
+        logAudit('UPDATE_TEMPLATE', 'Template Management', {
+          newValue: `${updates.name || t.name} (${updates.dimension || t.dimension}")`,
+          reason: `Modified template configuration by ${currentUser.name} (${currentUser.role})`
+        });
+        return { ...t, ...updates };
+      })
+    );
+  };
+
+  const toggleTemplateElement = (templateId: string, elementId: string) => {
+    setTemplates((prev) =>
+      prev.map((t) => {
+        if (t.id !== templateId) return t;
+        let toggledName = '';
+        let newState = false;
+        const updatedElements = t.elements.map((el) => {
+          if (el.id !== elementId) return el;
+          toggledName = el.name;
+          newState = !el.enabled;
+          return { ...el, enabled: !el.enabled };
+        });
+        logAudit('TOGGLE_TEMPLATE_ELEMENT', 'Template Management', {
+          oldValue: `${toggledName}: ${newState ? 'Disabled' : 'Enabled'}`,
+          newValue: `${toggledName}: ${newState ? 'Enabled' : 'Disabled'}`,
+          reason: `Element toggle by ${currentUser.name} (${currentUser.role})`
+        });
+        return { ...t, elements: updatedElements };
+      })
+    );
+  };
+
+  const createTemplateRevision = (templateId: string, summary: string, dimension?: LabelDimension) => {
     const source = templates.find((t) => t.id === templateId);
     if (!source) return;
 
@@ -607,6 +709,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...source,
       id: `tpl_${Date.now()}`,
       revision: newRevNum,
+      dimension: dimension || source.dimension,
       status: 'Draft',
       createdBy: `${currentUser.name} (${currentUser.role})`,
       createdAt: `${new Date().toISOString().split('T')[0]} ${new Date().toTimeString().split(' ')[0]} IST`,
@@ -617,10 +720,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setTemplates((prev) => [newTemplate, ...prev]);
     logAudit('CREATE_TEMPLATE_REVISION', 'Template Management', {
-      oldValue: `Template ${source.name} (Rev ${source.revision})`,
-      newValue: `New Draft Revision ${newRevNum}`,
+      oldValue: `Template ${source.name} (Rev ${source.revision}, ${source.dimension}")`,
+      newValue: `New Draft Revision ${newRevNum} (${dimension || source.dimension}")`,
       reason: summary
     });
+  };
+
+  const updateTemplateDimension = (templateId: string, dimension: LabelDimension) => {
+    setTemplates((prev) =>
+      prev.map((t) => {
+        if (t.id !== templateId) return t;
+        logAudit('UPDATE_TEMPLATE_DIMENSION', 'Template Management', {
+          oldValue: `${t.dimension}"`,
+          newValue: `${dimension}"`,
+          reason: `Dimension changed to ${dimension}" by ${currentUser.name} (${currentUser.role})`
+        });
+        return { ...t, dimension };
+      })
+    );
+  };
+
+  const submitTemplateForReview = (templateId: string) => {
+    setTemplates((prev) =>
+      prev.map((t) => {
+        if (t.id !== templateId) return t;
+        logAudit('SUBMIT_TEMPLATE_REVIEW', 'Template Management', {
+          oldValue: 'Draft',
+          newValue: 'In Review',
+          reason: `Submitted for QA Approval by ${currentUser.name} (${currentUser.role})`
+        });
+        return { ...t, status: 'In Review' as const };
+      })
+    );
   };
 
   const approveTemplateRevision = (templateId: string) => {
@@ -721,9 +852,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createBatch,
         updateDrumWeight,
         markDrumDamaged,
+        authorizeBatch,
+        completeBatch,
         generateDrumLabels,
         reprintDrumLabel,
+        addTemplate,
+        updateTemplate,
+        toggleTemplateElement,
         createTemplateRevision,
+        updateTemplateDimension,
+        submitTemplateForReview,
         approveTemplateRevision,
         exportAuditTrailCsv,
         resetAllData

@@ -14,9 +14,72 @@ import {
 } from 'lucide-react';
 
 export const ReportsView: React.FC = () => {
-  const { batches, auditLogs, exportAuditTrailCsv } = useApp();
+  const { batches, auditLogs } = useApp();
 
   const [activeTab, setActiveTab] = useState<'batch' | 'damaged' | 'users'>('batch');
+
+  const handleDownloadReconciliationCsv = () => {
+    const headers = [
+      'Batch Number',
+      'Product Name',
+      'Batch Size (Kg)',
+      'Total Drums',
+      'Printed Drums',
+      'Damaged Drums',
+      'Total Reprints',
+      'Serialization Progress (%)',
+      'Status'
+    ];
+    const rows = batches.map((b) => {
+      const printed = b.drums.filter((d) => d.status === 'Printed').length;
+      const damaged = b.drums.filter((d) => d.status === 'Damaged').length;
+      const reprints = b.drums.reduce((acc, d) => acc + (d.reprintCount || 0), 0);
+      const pct = b.totalDrums > 0 ? ((printed / b.totalDrums) * 100).toFixed(1) : '0.0';
+      return [
+        `"${b.batchNumber}"`,
+        `"${b.productName}"`,
+        `"${b.batchSizeKg}"`,
+        `"${b.totalDrums}"`,
+        `"${printed}"`,
+        `"${damaged}"`,
+        `"${reprints}"`,
+        `"${pct}%"`,
+        `"${b.status}"`
+      ];
+    });
+
+    const damagedRows = batches.flatMap((b) =>
+      b.drums
+        .filter((d) => d.status === 'Damaged' || d.reprintCount > 0)
+        .map((d) => [
+          `"${b.batchNumber}"`,
+          `"Drum #${d.drumNumber}"`,
+          `"${d.sscc || 'N/A'}"`,
+          `"${(d.damagedReason || 'N/A').replace(/"/g, '""')}"`,
+          `"${d.reprintCount}"`,
+          `"${(d.damagedDisposition || 'N/A').replace(/"/g, '""')}"`
+        ])
+    );
+
+    const reconciliationCsv = [
+      '=== BATCH RECONCILIATION SUMMARY (BMR) ===',
+      headers.join(','),
+      ...rows.map((r) => r.join(',')),
+      '',
+      '=== DAMAGED & REPRINT INCIDENT REGISTER ===',
+      'Batch Ref,Drum Container,Reused SSCC,Incident Reason,Reprint Count,Final Disposition',
+      ...damagedRows.map((r) => r.join(','))
+    ].join('\n');
+
+    const blob = new Blob([reconciliationCsv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `batch_reconciliation_report_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // Compute stats
   let totalPrinted = 0;
@@ -88,7 +151,7 @@ export const ReportsView: React.FC = () => {
         title="Operational Reports & Reconciliation"
         subtitle="Statistical summaries for Batch Manufacturing Records (BMR), serialization ledgers, and deviation reviews."
         action={
-          <PrimaryBtn icon={<Download className="w-4 h-4" />} onClick={exportAuditTrailCsv}>
+          <PrimaryBtn icon={<Download className="w-4 h-4" />} onClick={handleDownloadReconciliationCsv}>
             Download Reconciliation CSV
           </PrimaryBtn>
         }

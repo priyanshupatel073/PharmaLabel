@@ -22,7 +22,7 @@ export const Sidebar: React.FC = () => {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
   const pendingProducts  = products.filter(p => p.status === 'Pending Approval').length;
-  const pendingTemplates = templates.filter(t => t.status === 'In Review').length;
+  const pendingTemplates = templates.filter(t => t.status === 'In Review' || t.status === 'Draft').length;
 
   const groups = [
     {

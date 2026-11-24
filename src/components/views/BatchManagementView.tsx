@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Batch, Drum } from '../../types';
-import { Search, Plus, Scale, X } from 'lucide-react';
+import { Search, Plus, Scale, X, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { PageHeader, Card, PrimaryBtn, SecondaryBtn, StatusBadge, Modal, FormField, Input, Select } from '../ui';
 
 export const BatchManagementView: React.FC = () => {
-  const { batches, products, currentUser, createBatch, updateDrumWeight } = useApp();
+  const { batches, products, currentUser, createBatch, updateDrumWeight, completeBatch, authorizeBatch } = useApp();
 
   const [search, setSearch] = useState('');
   const [selectedBatch, setSelectedBatch] = useState<Batch | null>(batches[0] || null);
@@ -38,7 +38,7 @@ export const BatchManagementView: React.FC = () => {
     createBatch({
       batchNumber: nbNum, productId: prod.id, productName: prod.name,
       batchSizeKg: nbSize, totalDrums: nbDrums, defaultNetWeight: nbNet,
-      mfgDate: nbMfg, expiryDate: nbExp, status: 'In Progress'
+      mfgDate: nbMfg, expiryDate: nbExp, status: 'Pending'
     }, Array(nbDrums).fill(null).map(() => ({
       netWeight: nbNet, grossWeight: +(nbNet + 2.2).toFixed(2), tareWeight: 2.20
     })));
@@ -120,11 +120,29 @@ export const BatchManagementView: React.FC = () => {
                   </div>
                   <div className="text-xs text-slate-600 font-medium mt-0.5">{selectedBatch.productName} · {selectedBatch.batchSizeKg} Kg · Exp: {selectedBatch.expiryDate}</div>
                 </div>
-                {(currentUser.role === 'Supervisor' || currentUser.role === 'SuperAdmin') && (
-                  <div className="flex items-center gap-1.5 text-xs text-emerald-800 font-bold bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-300 shadow-xs">
-                    <Scale className="w-3.5 h-3.5 text-emerald-700" /> Weight Override Authorized
-                  </div>
-                )}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {(currentUser.role === 'Supervisor' || currentUser.role === 'SuperAdmin') && selectedBatch.status === 'Pending' && (
+                    <button
+                      onClick={() => authorizeBatch(selectedBatch.id)}
+                      className="flex items-center gap-1.5 text-xs text-white font-bold bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-xl border border-blue-700 shadow-sm transition active:scale-95"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-white" /> Authorize for Printing (Line Clearance)
+                    </button>
+                  )}
+                  {(currentUser.role === 'Supervisor' || currentUser.role === 'SuperAdmin') && selectedBatch.status === 'In Progress' && (
+                    <button
+                      onClick={() => completeBatch(selectedBatch.id)}
+                      className="flex items-center gap-1.5 text-xs text-white font-bold bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 rounded-xl border border-emerald-700 shadow-sm transition active:scale-95"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5 text-white" /> Complete Batch (QA Release)
+                    </button>
+                  )}
+                  {(currentUser.role === 'Supervisor' || currentUser.role === 'SuperAdmin') && (
+                    <div className="flex items-center gap-1.5 text-xs text-emerald-800 font-bold bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-300 shadow-xs">
+                      <Scale className="w-3.5 h-3.5 text-emerald-700" /> Weight Override Authorized
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
