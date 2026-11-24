@@ -126,7 +126,7 @@ export const DashboardView: React.FC = () => {
             Good Morning, {currentUser.name.split(' ')[0]}!
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            Here's what's happening in <strong className="text-slate-700">Harihar Pharma Pvt. Ltd.</strong> today.
+            Here's what's happening in <strong className="text-slate-700">Harihar Pharma </strong> today.
           </p>
         </div>
 
