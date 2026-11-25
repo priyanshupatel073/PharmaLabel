@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useApp } from '../../context/AppContext';
-import { PageHeader, Card, PrimaryBtn, StatusBadge } from '../ui';
+import { useApp } from '../context/AppContext';
+import { PageHeader, Card, PrimaryBtn, StatusBadge } from '../components/ui';
 import {
   BarChart3,
   Download,
@@ -13,7 +13,7 @@ import {
   Printer,
 } from 'lucide-react';
 
-export const ReportsView: React.FC = () => {
+export const ReportsPage: React.FC = () => {
   const { batches, auditLogs } = useApp();
 
   const [activeTab, setActiveTab] = useState<'batch' | 'damaged' | 'users'>('batch');

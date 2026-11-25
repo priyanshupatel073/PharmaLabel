@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useApp } from '../../context/AppContext';
-import { PageHeader, Card, PrimaryBtn, SecondaryBtn } from '../ui';
+import { useApp } from '../context/AppContext';
+import { PageHeader, Card, PrimaryBtn, SecondaryBtn } from '../components/ui';
 import {
   HardDriveDownload,
   ShieldCheck,
@@ -15,7 +15,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 
-export const BackupLicenseView: React.FC = () => {
+export const BackupLicensePage: React.FC = () => {
   const { license, auditLogs, batches, logAudit } = useApp();
 
   const [isBackingUp, setIsBackingUp] = useState(false);
@@ -109,11 +109,10 @@ export const BackupLicenseView: React.FC = () => {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-              activeTab === tab.id
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === tab.id
                 ? 'bg-white text-slate-900 shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
-            }`}
+              }`}
           >
             {tab.icon}
             {tab.label}

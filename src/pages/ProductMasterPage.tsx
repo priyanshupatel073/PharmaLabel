@@ -1,12 +1,17 @@
 import React, { useState } from 'react';
-import { useApp } from '../../context/AppContext';
-import { Product, ProductStatus } from '../../types';
+import { useSearchParams } from 'react-router-dom';
+import { useApp } from '../context/AppContext';
+import { Product, ProductStatus } from '../types';
 import { Search, Plus, Edit3, FileCheck2, CheckCircle, Eye } from 'lucide-react';
-import { PageHeader, Card, PrimaryBtn, SecondaryBtn, StatusBadge, Modal, FormField, Input, Select, Textarea } from '../ui';
+import { PageHeader, Card, PrimaryBtn, SecondaryBtn, StatusBadge, Modal, FormField, Input, Select, Textarea } from '../components/ui';
 
-export const ProductMasterView: React.FC = () => {
+export const ProductMasterPage: React.FC = () => {
   const { products, currentUser, addProduct, updateProduct, approveProductChange } = useApp();
-  const [search, setSearch] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const search = searchParams.get('q') ?? '';
+  const setSearch = (val: string) => {
+    setSearchParams(val ? { q: val } : {}, { replace: true });
+  };
   const [pharmFilter, setPharmFilter] = useState('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);

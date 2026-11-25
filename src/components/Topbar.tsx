@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import { APP_ROUTES } from '../routes';
 import {
   Search, Bell, Settings, ChevronDown,
   KeyRound, Menu, CheckCircle2, AlertTriangle,
   FileCheck, Layers, ArrowRight, ShieldCheck,
-  Clock, X, Check
+  X, Check, Package, Barcode, FileCode, History
 } from 'lucide-react';
 import { Role } from '../types';
 import { INITIAL_USERS } from '../utils/mockData';
@@ -33,10 +35,132 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenLoginModal }) => {
     auditLogs, products, templates, batches, setActiveTab
   } = useApp();
 
+  const navigate = useNavigate();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [clearedNotifications, setClearedNotifications] = useState(false);
   const [searchVal, setSearchVal] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  interface SearchResultItem {
+    id: string;
+    category: 'Batch' | 'Product' | 'SSCC' | 'Template' | 'Audit';
+    title: string;
+    subtitle: string;
+    to: string;
+  }
+
+  const searchResults = useMemo<SearchResultItem[]>(() => {
+    const q = searchVal.trim().toLowerCase();
+    if (!q) return [];
+
+    const results: SearchResultItem[] = [];
+
+    batches.forEach(b => {
+      if (
+        b.batchNumber.toLowerCase().includes(q) ||
+        b.productName.toLowerCase().includes(q) ||
+        b.status.toLowerCase().includes(q)
+      ) {
+        results.push({
+          id: `batch-${b.id}`,
+          category: 'Batch',
+          title: b.batchNumber,
+          subtitle: `${b.productName} · ${b.totalDrums} drums · ${b.status}`,
+          to: `${APP_ROUTES.batches.path}?q=${encodeURIComponent(b.batchNumber)}`,
+        });
+      }
+
+      b.drums.forEach(d => {
+        if (d.sscc && d.sscc.toLowerCase().includes(q)) {
+          results.push({
+            id: `sscc-${b.id}-${d.drumNumber}`,
+            category: 'SSCC',
+            title: d.sscc,
+            subtitle: `${b.batchNumber} · Drum #${d.drumNumber} · ${d.status}`,
+            to: `${APP_ROUTES.batches.path}?q=${encodeURIComponent(b.batchNumber)}`,
+          });
+        }
+      });
+    });
+
+    products.forEach(p => {
+      if (
+        p.name.toLowerCase().includes(q) ||
+        p.code.toLowerCase().includes(q) ||
+        p.gtin14.toLowerCase().includes(q) ||
+        p.apiName.toLowerCase().includes(q) ||
+        p.brandName.toLowerCase().includes(q) ||
+        p.casNumber.toLowerCase().includes(q)
+      ) {
+        results.push({
+          id: `prod-${p.id}`,
+          category: 'Product',
+          title: `${p.code} — ${p.name}`,
+          subtitle: `GTIN: ${p.gtin14} · ${p.status}`,
+          to: `${APP_ROUTES.products.path}?q=${encodeURIComponent(p.code)}`,
+        });
+      }
+    });
+
+    if (APP_ROUTES.templates.roles.includes(currentUser.role)) {
+      templates.forEach(t => {
+        if (
+          t.name.toLowerCase().includes(q) ||
+          t.revision.toLowerCase().includes(q) ||
+          t.dimension.toLowerCase().includes(q)
+        ) {
+          results.push({
+            id: `tpl-${t.id}`,
+            category: 'Template',
+            title: `${t.name} (Rev ${t.revision})`,
+            subtitle: `${t.dimension}" · ${t.status}`,
+            to: APP_ROUTES.templates.path,
+          });
+        }
+      });
+    }
+
+    if (APP_ROUTES.audit.roles.includes(currentUser.role)) {
+      auditLogs.forEach(log => {
+        if (
+          log.action.toLowerCase().includes(q) ||
+          log.userName.toLowerCase().includes(q) ||
+          (log.batchRef && log.batchRef.toLowerCase().includes(q)) ||
+          (log.sscc && log.sscc.toLowerCase().includes(q)) ||
+          (log.reason && log.reason.toLowerCase().includes(q))
+        ) {
+          const filterVal = log.sscc || log.batchRef || searchVal.trim();
+          results.push({
+            id: `audit-${log.id}`,
+            category: 'Audit',
+            title: log.action.replace(/_/g, ' '),
+            subtitle: `${log.userName} · ${log.module}${log.batchRef ? ` · ${log.batchRef}` : ''}`,
+            to: `${APP_ROUTES.audit.path}?q=${encodeURIComponent(filterVal)}`,
+          });
+        }
+      });
+    }
+
+    return results.slice(0, 10);
+  }, [searchVal, batches, products, templates, auditLogs, currentUser.role]);
+
+  const handleSelectSearchResult = (item: SearchResultItem) => {
+    navigate(item.to);
+    setSearchOpen(false);
+    setSearchVal('');
+  };
 
   const roles: Role[] = ['SuperAdmin', 'Admin', 'Supervisor', 'Operator'];
 
@@ -71,16 +195,103 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenLoginModal }) => {
       </div>
 
       {/* Search */}
-      <div className="relative flex-1 max-w-sm">
+      <div ref={searchRef} className="relative flex-1 max-w-sm">
         <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
         <input
           value={searchVal}
-          onChange={e => setSearchVal(e.target.value)}
+          onFocus={() => setSearchOpen(true)}
+          onChange={e => {
+            setSearchVal(e.target.value);
+            setSearchOpen(true);
+            setNotificationsOpen(false);
+            setUserMenuOpen(false);
+          }}
+          onKeyDown={e => {
+            if (e.key === 'Escape') {
+              setSearchOpen(false);
+              setSearchVal('');
+            } else if (e.key === 'Enter' && searchResults.length > 0) {
+              e.preventDefault();
+              handleSelectSearchResult(searchResults[0]);
+            }
+          }}
           placeholder="Search batches, products, SSCC..."
-          className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-medium
+          className="w-full pl-9 pr-8 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-medium
                      focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 focus:bg-white
                      placeholder:text-slate-400"
         />
+        {searchVal && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearchVal('');
+              setSearchOpen(false);
+            }}
+            aria-label="Clear search"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+
+        {/* Live Search Dropdown */}
+        {searchOpen && searchVal.trim().length > 0 && (
+          <div className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl border border-slate-200 shadow-2xl z-50 overflow-hidden">
+            <div className="px-3.5 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+              <span>Search Results</span>
+              <span>{searchResults.length} match{searchResults.length === 1 ? '' : 'es'}</span>
+            </div>
+
+            {searchResults.length === 0 ? (
+              <div className="p-6 text-center text-xs text-slate-400">
+                No batches, products, or SSCC records match "{searchVal.trim()}".
+              </div>
+            ) : (
+              <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+                {searchResults.map(item => {
+                  const iconMap = {
+                    Batch: <Layers className="w-3.5 h-3.5 text-teal-600" />,
+                    Product: <Package className="w-3.5 h-3.5 text-blue-600" />,
+                    SSCC: <Barcode className="w-3.5 h-3.5 text-purple-600" />,
+                    Template: <FileCode className="w-3.5 h-3.5 text-amber-600" />,
+                    Audit: <History className="w-3.5 h-3.5 text-slate-600" />,
+                  };
+                  const badgeMap = {
+                    Batch: 'bg-teal-50 text-teal-700 border-teal-200',
+                    Product: 'bg-blue-50 text-blue-700 border-blue-200',
+                    SSCC: 'bg-purple-50 text-purple-700 border-purple-200',
+                    Template: 'bg-amber-50 text-amber-700 border-amber-200',
+                    Audit: 'bg-slate-100 text-slate-700 border-slate-200',
+                  };
+
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => handleSelectSearchResult(item)}
+                      className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 transition flex items-start gap-2.5 group"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center shrink-0 mt-0.5">
+                        {iconMap[item.category]}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-bold text-slate-900 group-hover:text-brand-600 truncate">
+                            {item.title}
+                          </span>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${badgeMap[item.category]}`}>
+                            {item.category}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 truncate mt-0.5">{item.subtitle}</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-2 ml-auto">

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { useApp } from '../../context/AppContext';
-import { LabelTemplate, LabelDimension, TemplateStatus, LabelSnapshot } from '../../types';
-import { ThermalLabelSimulator } from '../ThermalLabelSimulator';
-import { PageHeader, Card, PrimaryBtn, SecondaryBtn, StatusBadge, Modal, FormField, Textarea, Select, Input } from '../ui';
+import { useApp } from '../context/AppContext';
+import { LabelTemplate, LabelDimension, TemplateStatus, LabelSnapshot } from '../types';
+import { ThermalLabelSimulator } from '../components/ThermalLabelSimulator';
+import { PageHeader, Card, PrimaryBtn, SecondaryBtn, StatusBadge, Modal, FormField, Textarea, Select, Input } from '../components/ui';
 import {
   FileCode,
   CheckCircle,
@@ -19,7 +19,7 @@ import {
   Edit3,
 } from 'lucide-react';
 
-export const TemplateDesignerView: React.FC = () => {
+export const TemplateDesignerPage: React.FC = () => {
   const { templates, currentUser, addTemplate, updateTemplate, toggleTemplateElement, createTemplateRevision, updateTemplateDimension, submitTemplateForReview, approveTemplateRevision, companySettings } = useApp();
 
   const [selectedId, setSelectedId] = useState<string>(templates[0]?.id || '');

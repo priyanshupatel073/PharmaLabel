@@ -1,14 +1,39 @@
 import React, { useState } from 'react';
-import { useApp } from '../../context/AppContext';
-import { Batch, Drum } from '../../types';
+import { useSearchParams } from 'react-router-dom';
+import { useApp } from '../context/AppContext';
+import { Batch, Drum } from '../types';
 import { Search, Plus, Scale, X, CheckCircle2, ShieldCheck } from 'lucide-react';
-import { PageHeader, Card, PrimaryBtn, SecondaryBtn, StatusBadge, Modal, FormField, Input, Select } from '../ui';
+import { PageHeader, Card, PrimaryBtn, SecondaryBtn, StatusBadge, Modal, FormField, Input, Select } from '../components/ui';
 
-export const BatchManagementView: React.FC = () => {
+export const BatchManagementPage: React.FC = () => {
   const { batches, products, currentUser, createBatch, updateDrumWeight, completeBatch, authorizeBatch } = useApp();
 
-  const [search, setSearch] = useState('');
-  const [selectedBatch, setSelectedBatch] = useState<Batch | null>(batches[0] || null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const search = searchParams.get('q') ?? '';
+  const setSearch = (val: string) => {
+    setSearchParams(val ? { q: val } : {}, { replace: true });
+  };
+  const [manualSelection, setManualSelection] = useState<{ query: string; batchId: string } | null>(null);
+
+  const matchedFromQuery = search
+    ? batches.find(
+        b =>
+          b.batchNumber.toLowerCase().includes(search.toLowerCase()) ||
+          b.productName.toLowerCase().includes(search.toLowerCase())
+      )
+    : undefined;
+
+  const selectedBatch: Batch | null =
+    (manualSelection?.query === search
+      ? batches.find(b => b.id === manualSelection.batchId)
+      : undefined) ||
+    matchedFromQuery ||
+    batches[0] ||
+    null;
+
+  const setSelectedBatch = (batch: Batch) => {
+    setManualSelection({ query: search, batchId: batch.id });
+  };
   const [createModal, setCreateModal] = useState(false);
   const [weightDrum, setWeightDrum] = useState<Drum | null>(null);
   const [newNet, setNewNet] = useState(25.0);

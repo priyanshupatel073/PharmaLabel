@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { useApp } from '../../context/AppContext';
+import { useApp } from '../context/AppContext';
 import { Building2, Save, Barcode, Printer, ShieldAlert, CheckCircle2 } from 'lucide-react';
-import { PageHeader, Card, PrimaryBtn, FormField, Input, Select, Modal } from '../ui';
+import { PageHeader, Card, PrimaryBtn, FormField, Input, Select, Modal } from '../components/ui';
 
-export const CompanySettingsView: React.FC = () => {
+export const CompanySettingsPage: React.FC = () => {
   const { companySettings, updateCompanySettings } = useApp();
   const [form, setForm] = useState({ ...companySettings });
   const [reasonModal, setReasonModal] = useState(false);

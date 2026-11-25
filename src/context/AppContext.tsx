@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { getRouteForTab, getTabFromPath } from '../routes';
 import {
   User,
   Role,
@@ -130,7 +132,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const activeTab = getTabFromPath(location.pathname);
+  const setActiveTab = (tab: string) => {
+    navigate(getRouteForTab(tab));
+  };
   const [failedLoginAttempts, setFailedLoginAttempts] = useState<number>(0);
   const [lockoutRemaining, setLockoutRemaining] = useState<number>(0);
 

@@ -1,25 +1,15 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { NavLink, Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import { APP_ROUTES, getRouteForTab } from '../routes';
 import {
   LayoutDashboard, Building2, Package, Layers,
   FileCode, Printer, History, BarChart3,
-  HardDriveDownload, ChevronDown, ChevronRight,
-  Barcode, FlaskConical
+  HardDriveDownload, FlaskConical
 } from 'lucide-react';
 
-interface NavItem {
-  id: string;
-  label: string;
-  icon: React.ElementType;
-  roles: string[];
-  badge?: string;
-  badgeColor?: string;
-  children?: { id: string; label: string }[];
-}
-
 export const Sidebar: React.FC = () => {
-  const { activeTab, setActiveTab, currentUser, products, templates } = useApp();
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const { currentUser, products, templates } = useApp();
 
   const pendingProducts  = products.filter(p => p.status === 'Pending Approval').length;
   const pendingTemplates = templates.filter(t => t.status === 'In Review' || t.status === 'Draft').length;
@@ -28,27 +18,27 @@ export const Sidebar: React.FC = () => {
     {
       heading: 'MAIN',
       items: [
-        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['SuperAdmin','Admin','Supervisor','Operator'] },
+        { id: 'dashboard', label: APP_ROUTES.dashboard.title, icon: LayoutDashboard, roles: APP_ROUTES.dashboard.roles },
       ]
     },
     {
       heading: 'PRODUCTION',
       items: [
-        { id: 'batches',   label: 'Batch & Drums',   icon: Layers,  roles: ['SuperAdmin','Admin','Supervisor','Operator'] },
-        { id: 'printing',  label: 'Label Printing',  icon: Printer, roles: ['SuperAdmin','Supervisor','Operator'] },
+        { id: 'batches',   label: APP_ROUTES.batches.title,   icon: Layers,  roles: APP_ROUTES.batches.roles },
+        { id: 'printing',  label: APP_ROUTES.printing.title,  icon: Printer, roles: APP_ROUTES.printing.roles },
         {
           id: 'products',
-          label: 'Product Master',
+          label: APP_ROUTES.products.title,
           icon: Package,
-          roles: ['SuperAdmin','Admin','Supervisor','Operator'],
+          roles: APP_ROUTES.products.roles,
           badge: pendingProducts > 0 ? String(pendingProducts) : undefined,
           badgeColor: 'bg-amber-500'
         },
         {
           id: 'templates',
-          label: 'Label Templates',
+          label: APP_ROUTES.templates.title,
           icon: FileCode,
-          roles: ['SuperAdmin','Admin','Supervisor'],
+          roles: APP_ROUTES.templates.roles,
           badge: pendingTemplates > 0 ? String(pendingTemplates) : undefined,
           badgeColor: 'bg-amber-500'
         },
@@ -57,15 +47,15 @@ export const Sidebar: React.FC = () => {
     {
       heading: 'CONFIGURATION',
       items: [
-        { id: 'company', label: 'Company & GS1', icon: Building2, roles: ['SuperAdmin','Admin'] },
+        { id: 'company', label: APP_ROUTES.company.title, icon: Building2, roles: APP_ROUTES.company.roles },
       ]
     },
     {
       heading: 'ANALYTICS',
       items: [
-        { id: 'audit',   label: 'Audit Trail',   icon: History,   roles: ['SuperAdmin','Admin','Supervisor'] },
-        { id: 'reports', label: 'Reports',        icon: BarChart3, roles: ['SuperAdmin','Admin','Supervisor'] },
-        { id: 'backup',  label: 'Licensing & Backup', icon: HardDriveDownload, roles: ['SuperAdmin','Admin'] },
+        { id: 'audit',   label: APP_ROUTES.audit.title,   icon: History,           roles: APP_ROUTES.audit.roles },
+        { id: 'reports', label: APP_ROUTES.reports.title, icon: BarChart3,         roles: APP_ROUTES.reports.roles },
+        { id: 'backup',  label: APP_ROUTES.backup.title,  icon: HardDriveDownload, roles: APP_ROUTES.backup.roles },
       ]
     },
   ];
@@ -73,7 +63,10 @@ export const Sidebar: React.FC = () => {
   return (
     <aside className="w-60 bg-white border-r border-slate-200/80 flex flex-col shrink-0 sticky top-0 h-screen z-20 shadow-xs">
       {/* Logo / Brand */}
-      <div className="h-16 flex items-center gap-3 px-5 border-b border-slate-200/80 shrink-0">
+      <Link
+        to={APP_ROUTES.dashboard.path}
+        className="h-16 flex items-center gap-3 px-5 border-b border-slate-200/80 shrink-0 hover:bg-slate-50/70 transition-colors"
+      >
         <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-500 to-indigo-600 flex items-center justify-center shadow-nav">
           <FlaskConical className="w-4 h-4 text-white" />
         </div>
@@ -81,7 +74,7 @@ export const Sidebar: React.FC = () => {
           <div className="font-extrabold text-sm text-slate-900 tracking-tight">PharmLabel</div>
           <div className="text-[10px] text-slate-400 font-medium">Serialization Pro</div>
         </div>
-      </div>
+      </Link>
 
       {/* Navigation groups */}
       <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-5">
@@ -97,26 +90,31 @@ export const Sidebar: React.FC = () => {
               <div className="space-y-0.5">
                 {visibleItems.map(item => {
                   const Icon = item.icon;
-                  const isActive = activeTab === item.id;
 
                   return (
-                    <button
+                    <NavLink
                       key={item.id}
-                      onClick={() => setActiveTab(item.id)}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                        isActive
-                          ? 'nav-active text-white shadow-nav font-bold'
-                          : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-                      }`}
+                      to={getRouteForTab(item.id)}
+                      className={({ isActive }) =>
+                        `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                          isActive
+                            ? 'nav-active text-white shadow-nav font-bold'
+                            : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                        }`
+                      }
                     >
-                      <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-500'}`} />
-                      <span className="flex-1 text-left">{item.label}</span>
-                      {item.badge && (
-                        <span className={`${item.badgeColor || 'bg-slate-500'} text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center`}>
-                          {item.badge}
-                        </span>
+                      {({ isActive }) => (
+                        <>
+                          <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-500'}`} />
+                          <span className="flex-1 text-left">{item.label}</span>
+                          {item.badge && (
+                            <span className={`${item.badgeColor || 'bg-slate-500'} text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center`}>
+                              {item.badge}
+                            </span>
+                          )}
+                        </>
                       )}
-                    </button>
+                    </NavLink>
                   );
                 })}
               </div>

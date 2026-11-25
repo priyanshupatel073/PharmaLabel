@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { useApp } from '../../context/AppContext';
-import { LabelType, LabelSnapshot, Drum } from '../../types';
-import { ThermalLabelSimulator } from '../ThermalLabelSimulator';
+import { useApp } from '../context/AppContext';
+import { LabelType, LabelSnapshot, Drum } from '../types';
+import { ThermalLabelSimulator } from '../components/ThermalLabelSimulator';
 import { Barcode, RefreshCw, AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, X } from 'lucide-react';
-import { PageHeader, Card, PrimaryBtn, StatusBadge, Modal, FormField, Input, Select } from '../ui';
+import { PageHeader, Card, PrimaryBtn, StatusBadge, Modal, FormField, Input, Select } from '../components/ui';
 
-export const LabelPrintingView: React.FC = () => {
+export const LabelPrintingPage: React.FC = () => {
   const { batches, templates, currentUser, generateDrumLabels, reprintDrumLabel, markDrumDamaged } = useApp();
 
   const activeBatches = batches.filter(b => b.status === 'In Progress' || b.status === 'Pending');

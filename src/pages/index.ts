@@ -1,0 +1,9 @@
+export { DashboardPage } from './DashboardPage';
+export { BatchManagementPage } from './BatchManagementPage';
+export { LabelPrintingPage } from './LabelPrintingPage';
+export { ProductMasterPage } from './ProductMasterPage';
+export { TemplateDesignerPage } from './TemplateDesignerPage';
+export { CompanySettingsPage } from './CompanySettingsPage';
+export { AuditTrailPage } from './AuditTrailPage';
+export { ReportsPage } from './ReportsPage';
+export { BackupLicensePage } from './BackupLicensePage';

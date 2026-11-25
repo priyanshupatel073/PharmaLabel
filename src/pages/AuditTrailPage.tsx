@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { useApp } from '../../context/AppContext';
-import { PageHeader, Card, PrimaryBtn, StatusBadge } from '../ui';
+import { useSearchParams } from 'react-router-dom';
+import { useApp } from '../context/AppContext';
+import { PageHeader, Card, PrimaryBtn, StatusBadge } from '../components/ui';
 import {
   History,
   Download,
@@ -9,10 +10,14 @@ import {
   Filter,
 } from 'lucide-react';
 
-export const AuditTrailView: React.FC = () => {
+export const AuditTrailPage: React.FC = () => {
   const { auditLogs, exportAuditTrailCsv } = useApp();
 
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchTerm = searchParams.get('q') ?? '';
+  const setSearchTerm = (val: string) => {
+    setSearchParams(val ? { q: val } : {}, { replace: true });
+  };
   const [selectedModule, setSelectedModule] = useState('ALL');
   const [selectedUser, setSelectedUser] = useState('ALL');
 
@@ -32,13 +37,13 @@ export const AuditTrailView: React.FC = () => {
   });
 
   const moduleColors: Record<string, string> = {
-    'Authentication':    'bg-purple-100 text-purple-800 border border-purple-300',
-    'Company Settings':  'bg-blue-100 text-blue-800 border border-blue-300',
-    'Product Master':    'bg-teal-100 text-teal-800 border border-teal-300',
-    'Batch Management':  'bg-indigo-100 text-indigo-800 border border-indigo-300',
-    'Label Printing':    'bg-emerald-100 text-emerald-800 border border-emerald-300',
+    'Authentication': 'bg-purple-100 text-purple-800 border border-purple-300',
+    'Company Settings': 'bg-blue-100 text-blue-800 border border-blue-300',
+    'Product Master': 'bg-teal-100 text-teal-800 border border-teal-300',
+    'Batch Management': 'bg-indigo-100 text-indigo-800 border border-indigo-300',
+    'Label Printing': 'bg-emerald-100 text-emerald-800 border border-emerald-300',
     'Template Designer': 'bg-amber-100 text-amber-800 border border-amber-300',
-    'Backup & Restore':  'bg-rose-100 text-rose-800 border border-rose-300',
+    'Backup & Restore': 'bg-rose-100 text-rose-800 border border-rose-300',
   };
 
   return (
@@ -167,11 +172,10 @@ export const AuditTrailView: React.FC = () => {
                     {log.reason || <span className="text-slate-400 not-italic font-bold">—</span>}
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black border ${
-                      log.outcome === 'SUCCESS'
+                    <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black border ${log.outcome === 'SUCCESS'
                         ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                         : 'bg-rose-50 text-rose-800 border-rose-300'
-                    }`}>
+                      }`}>
                       {log.outcome}
                     </span>
                   </td>

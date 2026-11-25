@@ -1,5 +1,5 @@
 import React from 'react';
-import { useApp } from '../../context/AppContext';
+import { useApp } from '../context/AppContext';
 import {
   Tag, Layers, Barcode, AlertTriangle,
   ArrowUpRight, ArrowRight, ChevronRight,
@@ -52,7 +52,7 @@ const SparkLine: React.FC<{ color: string }> = ({ color }) => {
   );
 };
 
-export const DashboardView: React.FC = () => {
+export const DashboardPage: React.FC = () => {
   const {
     currentUser, setActiveTab,
     batches, products, templates, auditLogs,
