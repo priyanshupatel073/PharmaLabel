@@ -19,6 +19,19 @@ $sql = file_get_contents($schemaFile);
 $fileSize = strlen($sql);
 echo "✅ File loaded: backend/database/schema.sql ($fileSize bytes)\n";
 
+echo "\n--- 0. Database Creation Check ---\n";
+if (preg_match("/CREATE\s+DATABASE\s+IF\s+NOT\s+EXISTS\s+`pharmalabel_db`/i", $sql)) {
+    echo "  [PASS] `CREATE DATABASE IF NOT EXISTS \`pharmalabel_db\`` verified\n";
+} else {
+    echo "  [FAIL] Missing CREATE DATABASE statement\n";
+}
+
+if (preg_match("/USE\s+`pharmalabel_db`/i", $sql)) {
+    echo "  [PASS] `USE \`pharmalabel_db\`` verified\n";
+} else {
+    echo "  [FAIL] Missing USE DATABASE statement\n";
+}
+
 // Required Tables
 $requiredTables = [
     'organizations',

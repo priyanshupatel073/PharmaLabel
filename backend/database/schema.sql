@@ -4,6 +4,15 @@
 -- Hostinger MySQL 8.0+ / MariaDB 10.5+ Architecture
 -- ============================================================================
 
+-- ----------------------------------------------------------------------------
+-- CREATE & SELECT MASTER DATABASE
+-- ----------------------------------------------------------------------------
+CREATE DATABASE IF NOT EXISTS `pharmalabel_db`
+DEFAULT CHARACTER SET utf8mb4
+COLLATE utf8mb4_unicode_ci;
+
+USE `pharmalabel_db`;
+
 SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS `audit_logs`;
 DROP TABLE IF EXISTS `label_snapshots`;
