@@ -5,6 +5,14 @@ import {
   ArrowUpRight, ArrowRight, ChevronRight,
   Printer, FileCheck, CheckCircle2, ShieldCheck
 } from 'lucide-react';
+const currentHour = new Date().getHours();
+
+const greeting =
+  currentHour < 12
+    ? 'Good Morning'
+    : currentHour < 17
+      ? 'Good Afternoon'
+      : 'Good Evening';
 
 // Tiny sparkline-like SVG bar chart for KPI cards
 const SparkBars: React.FC<{ color: string }> = ({ color }) => {
@@ -123,10 +131,12 @@ export const DashboardView: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-            Good Morning, {currentUser.name.split(' ')[0]}!
+
+            {greeting}, {currentUser.name.split(' ')[0]}
+
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            Here's what's happening in <strong className="text-slate-700">Harihar Pharma Pvt. Ltd.</strong> today.
+            Here's what's happening in <strong className="text-slate-700">Harihar Pharma </strong> today.
           </p>
         </div>
 
