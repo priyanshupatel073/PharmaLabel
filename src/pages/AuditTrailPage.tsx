@@ -8,6 +8,8 @@ import {
   Search,
   ShieldCheck,
   Filter,
+  Clock,
+  Calendar,
 } from 'lucide-react';
 
 export const AuditTrailPage: React.FC = () => {
@@ -114,7 +116,7 @@ export const AuditTrailPage: React.FC = () => {
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-100/80 border-b border-slate-200 text-slate-700 font-bold uppercase tracking-wider text-[10px]">
               <tr>
-                <th className="px-5 py-3.5 whitespace-nowrap">Timestamp (IST)</th>
+                <th className="px-5 py-3.5 whitespace-nowrap">Date & Time (IST)</th>
                 <th className="px-4 py-3.5">User / Role</th>
                 <th className="px-4 py-3.5">Action Event</th>
                 <th className="px-4 py-3.5">Module</th>
@@ -132,11 +134,25 @@ export const AuditTrailPage: React.FC = () => {
                   </td>
                 </tr>
               )}
-              {filteredLogs.map((log) => (
-                <tr key={log.id} className="hover:bg-slate-50 transition">
-                  <td className="px-5 py-3 font-mono text-xs text-slate-700 font-semibold whitespace-nowrap">
-                    {log.timestamp}
-                  </td>
+              {filteredLogs.map((log) => {
+                const parts = (log.timestamp || '').split(' ');
+                const datePart = parts[0] || log.timestamp;
+                const timePart = parts.slice(1).join(' ');
+
+                return (
+                  <tr key={log.id} className="hover:bg-slate-50 transition">
+                    <td className="px-5 py-3 whitespace-nowrap">
+                      <div className="font-mono text-xs font-bold text-slate-900 tracking-tight flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span>{datePart}</span>
+                      </div>
+                      {timePart && (
+                        <div className="font-mono text-[11px] font-semibold text-slate-500 mt-1 flex items-center gap-1.5">
+                          <Clock className="w-3 h-3 text-indigo-500 shrink-0" />
+                          <span className="text-indigo-950 font-bold">{timePart}</span>
+                        </div>
+                      )}
+                    </td>
                   <td className="px-4 py-3">
                     <div className="font-bold text-slate-900 text-xs">{log.userName}</div>
                     <span className="inline-block mt-0.5 px-1.5 py-0.5 text-[10px] rounded font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">{log.userRole}</span>
@@ -180,8 +196,9 @@ export const AuditTrailPage: React.FC = () => {
                     </span>
                   </td>
                 </tr>
-              ))}
-            </tbody>
+              );
+            })}
+          </tbody>
           </table>
         </div>
 

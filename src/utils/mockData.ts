@@ -252,10 +252,20 @@ export const INITIAL_TEMPLATES: LabelTemplate[] = [
   }
 ];
 
+const getSeedTimestamp = (daysAgo: number, timeStr: string): string => {
+  const d = new Date();
+  d.setDate(d.getDate() - daysAgo);
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const y = d.getFullYear();
+  const m = pad(d.getMonth() + 1);
+  const day = pad(d.getDate());
+  return `${y}-${m}-${day} ${timeStr} IST`;
+};
+
 export const INITIAL_AUDIT_LOGS: AuditLog[] = [
   {
     id: 'aud_1',
-    timestamp: '2026-11-23 09:00:12 IST',
+    timestamp: getSeedTimestamp(0, '09:00:12'),
     userId: 'usr_superadmin',
     userName: 'Kunal Singhania',
     userRole: 'SuperAdmin',
@@ -266,7 +276,7 @@ export const INITIAL_AUDIT_LOGS: AuditLog[] = [
   },
   {
     id: 'aud_2',
-    timestamp: '2026-11-23 09:15:44 IST',
+    timestamp: getSeedTimestamp(0, '09:15:44'),
     userId: 'usr_admin',
     userName: 'Vikram Joshi',
     userRole: 'Admin',
@@ -279,7 +289,7 @@ export const INITIAL_AUDIT_LOGS: AuditLog[] = [
   },
   {
     id: 'aud_3',
-    timestamp: '2026-11-23 09:45:00 IST',
+    timestamp: getSeedTimestamp(0, '09:45:00'),
     userId: 'usr_admin',
     userName: 'Vikram Joshi',
     userRole: 'Admin',
@@ -293,7 +303,7 @@ export const INITIAL_AUDIT_LOGS: AuditLog[] = [
   },
   {
     id: 'aud_4',
-    timestamp: '2026-11-23 10:15:00 IST',
+    timestamp: getSeedTimestamp(0, '10:15:00'),
     userId: 'usr_operator',
     userName: 'Ramesh Kumar',
     userRole: 'Operator',
@@ -306,7 +316,7 @@ export const INITIAL_AUDIT_LOGS: AuditLog[] = [
   },
   {
     id: 'aud_5',
-    timestamp: '2026-11-23 10:45:22 IST',
+    timestamp: getSeedTimestamp(0, '10:45:22'),
     userId: 'usr_operator',
     userName: 'Ramesh Kumar',
     userRole: 'Operator',
@@ -321,7 +331,7 @@ export const INITIAL_AUDIT_LOGS: AuditLog[] = [
   },
   {
     id: 'aud_6',
-    timestamp: '2026-11-23 11:30:15 IST',
+    timestamp: getSeedTimestamp(0, '11:30:15'),
     userId: 'usr_operator',
     userName: 'Ramesh Kumar',
     userRole: 'Operator',

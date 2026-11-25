@@ -229,7 +229,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   ) => {
     const now = new Date();
-    const timestamp = `${now.toISOString().split('T')[0]} ${now.toTimeString().split(' ')[0]} IST`;
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())} IST`;
     const newLog: AuditLog = {
       id: `aud_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       timestamp,
