@@ -93,10 +93,23 @@ export const LabelPrintingPage: React.FC = () => {
             <FormField label="Approved Template Revision">
               <Select value={templateId} onChange={e => setTemplateId(e.target.value)}>
                 {approvedTemplates.map(t => (
-                  <option key={t.id} value={t.id}>{t.name} (Rev {t.revision})</option>
+                  <option key={t.id} value={t.id}>{t.name} (Rev {t.revision} · {t.dimension}&quot;)</option>
                 ))}
               </Select>
             </FormField>
+
+            {(() => {
+              const selTpl = approvedTemplates.find(t => t.id === templateId);
+              if (!selTpl) return null;
+              return (
+                <div className="flex items-center justify-between px-3.5 py-2 bg-indigo-50/80 border border-indigo-200 rounded-xl text-xs -mt-2 shadow-xs">
+                  <span className="text-slate-700 font-bold">Selected Label Size:</span>
+                  <span className="font-mono font-black text-indigo-950 bg-white px-2 py-0.5 rounded-lg border border-indigo-300">
+                    {selTpl.dimension}&quot; ({selTpl.dimension === '6x4' ? 'Wide Shipper' : selTpl.dimension === '4x4' ? 'Square Pail' : selTpl.dimension === '3x2' ? 'Small Container' : 'Standard Drum'})
+                  </span>
+                </div>
+              );
+            })()}
 
             <FormField label="Label Operation Type">
               <Select value={labelType} onChange={e => setLabelType(e.target.value as any)}>
@@ -223,50 +236,59 @@ export const LabelPrintingPage: React.FC = () => {
       </div>
 
       {/* Label Preview Modal */}
-      {snapshots.length > 0 && (
-        <Modal onClose={() => setSnapshots([])} title={`Label Preview — ${snapshots[snapIdx]?.batchNumber}`}
-          subtitle={`Drum ${snapshots[snapIdx]?.drumNumber} · ${snapIdx + 1} of ${snapshots.length}`} maxW="max-w-lg">
-          <ThermalLabelSimulator
-            label={snapshots[snapIdx]}
-            onPrint={() => window.print()}
+      {snapshots.length > 0 && (() => {
+        const snap = snapshots[snapIdx];
+        const snapDim = snap?.dimension || '4x6';
+        const modalMaxW = snapDim === '6x4' ? 'max-w-3xl' : snapDim === '4x4' ? 'max-w-xl' : 'max-w-lg';
+        return (
+          <Modal
             onClose={() => setSnapshots([])}
-          />
-          <div className="flex items-center justify-between pt-4 border-t border-slate-100 mt-4">
-            {snapshots.length > 1 ? (
-              <>
-                <button disabled={snapIdx === 0} onClick={() => setSnapIdx(p => Math.max(0, p - 1))}
-                  className="flex items-center gap-1 px-3 py-1.5 border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 font-bold rounded-xl text-xs disabled:opacity-30 transition shadow-xs">
-                  <ChevronLeft className="w-4 h-4" /> Prev
-                </button>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono text-slate-800 font-bold">Drum #{snapshots[snapIdx]?.drumNumber}</span>
+            title={`Label Preview — ${snap?.batchNumber}`}
+            subtitle={`Drum ${snap?.drumNumber} · ${snapIdx + 1} of ${snapshots.length} · Format: ${snapDim}" Thermal (${snapDim === '6x4' ? 'Wide Shipper' : snapDim === '4x4' ? 'Square Pail' : snapDim === '3x2' ? 'Small Container' : 'Standard Drum'})`}
+            maxW={modalMaxW}
+          >
+            <ThermalLabelSimulator
+              label={snap}
+              onPrint={() => window.print()}
+              onClose={() => setSnapshots([])}
+            />
+            <div className="flex items-center justify-between pt-4 border-t border-slate-100 mt-4">
+              {snapshots.length > 1 ? (
+                <>
+                  <button disabled={snapIdx === 0} onClick={() => setSnapIdx(p => Math.max(0, p - 1))}
+                    className="flex items-center gap-1 px-3 py-1.5 border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 font-bold rounded-xl text-xs disabled:opacity-30 transition shadow-xs">
+                    <ChevronLeft className="w-4 h-4" /> Prev
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-slate-800 font-bold">Drum #{snap?.drumNumber}</span>
+                    <button
+                      type="button"
+                      onClick={() => setSnapshots([])}
+                      className="px-2.5 py-1 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg transition"
+                    >
+                      Close
+                    </button>
+                  </div>
+                  <button disabled={snapIdx === snapshots.length - 1} onClick={() => setSnapIdx(p => Math.min(snapshots.length - 1, p + 1))}
+                    className="flex items-center gap-1 px-3 py-1.5 border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 font-bold rounded-xl text-xs disabled:opacity-30 transition shadow-xs">
+                    Next <ChevronRight className="w-4 h-4" />
+                  </button>
+                </>
+              ) : (
+                <div className="w-full flex justify-end">
                   <button
                     type="button"
                     onClick={() => setSnapshots([])}
-                    className="px-2.5 py-1 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg transition"
+                    className="px-4 py-2 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-xl transition shadow-xs flex items-center gap-1.5 cursor-pointer"
                   >
-                    Close
+                    <X className="w-3.5 h-3.5 text-slate-500" /> Close / Cancel Preview
                   </button>
                 </div>
-                <button disabled={snapIdx === snapshots.length - 1} onClick={() => setSnapIdx(p => Math.min(snapshots.length - 1, p + 1))}
-                  className="flex items-center gap-1 px-3 py-1.5 border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 font-bold rounded-xl text-xs disabled:opacity-30 transition shadow-xs">
-                  Next <ChevronRight className="w-4 h-4" />
-                </button>
-              </>
-            ) : (
-              <div className="w-full flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setSnapshots([])}
-                  className="px-4 py-2 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-xl transition shadow-xs flex items-center gap-1.5 cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5 text-slate-500" /> Close / Cancel Preview
-                </button>
-              </div>
-            )}
-          </div>
-        </Modal>
-      )}
+              )}
+            </div>
+          </Modal>
+        );
+      })()}
 
       {/* Reprint Modal */}
       {reprintDrum && selectedBatch && (

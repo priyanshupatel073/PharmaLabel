@@ -419,9 +419,9 @@ export const TemplateDesignerPage: React.FC = () => {
       {previewSnapshot && (
         <Modal
           onClose={() => setPreviewSnapshot(null)}
-          title="Thermal Design Preview"
-          subtitle="Sample mockup with PREVIEW ONLY watermark — not suitable for production use"
-          maxW="max-w-lg"
+          title={`Thermal Design Preview — ${previewSnapshot.dimension}" Format`}
+          subtitle={`Sample mockup for ${previewSnapshot.dimension}" Thermal label (${previewSnapshot.dimension === '6x4' ? 'Wide Shipper' : previewSnapshot.dimension === '4x4' ? 'Square Pail' : previewSnapshot.dimension === '3x2' ? 'Small Container' : 'Standard Drum'}) · PREVIEW ONLY watermark`}
+          maxW={previewSnapshot.dimension === '6x4' ? 'max-w-3xl' : previewSnapshot.dimension === '4x4' ? 'max-w-xl' : 'max-w-lg'}
         >
           <ThermalLabelSimulator label={previewSnapshot} showActions={false} />
           <div className="flex justify-end pt-4 border-t border-slate-100 mt-4">

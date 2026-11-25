@@ -588,6 +588,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const nextReprintCount = (drum.reprintCount || 0) + 1;
 
+    const activeTemplate = templates.find((t) => t.status === 'Approved/Effective') || templates[0];
+
     // Strict GS1 rule: Reuse the EXACT same SSCC!
     const reprintSnapshot: LabelSnapshot = {
       id: `snap_reprint_${Date.now()}_${drumNumber}`,
@@ -607,8 +609,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       cautionText: 'FOR PHARMACEUTICAL MANUFACTURING USE ONLY.',
       companyName: companySettings.companyName,
       mfgLicenseNumber: companySettings.mfgLicenseNumber,
-      templateRevision: '1.0',
-      dimension: '4x6',
+      templateRevision: activeTemplate?.revision || '1.0',
+      dimension: activeTemplate?.dimension || '4x6',
       generatedAt: new Date().toLocaleString(),
       generatedBy: `${currentUser.name} (${currentUser.role})`,
       reprintCount: nextReprintCount,
