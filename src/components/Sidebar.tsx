@@ -11,74 +11,91 @@ import {
 export const Sidebar: React.FC = () => {
   const { currentUser, products, templates } = useApp();
 
+  const isSuperAdmin = currentUser.role === 'SuperAdmin';
   const pendingProducts  = products.filter(p => p.status === 'Pending Approval').length;
   const pendingTemplates = templates.filter(t => t.status === 'In Review' || t.status === 'Draft').length;
 
-  const groups = [
-    {
-      heading: 'PLATFORM OWNER',
-      items: [
-        { id: 'superadmin', label: APP_ROUTES.superadmin.title, icon: ShieldCheck, roles: APP_ROUTES.superadmin.roles },
-      ]
-    },
-    {
-      heading: 'MAIN',
-      items: [
-        { id: 'dashboard', label: APP_ROUTES.dashboard.title, icon: LayoutDashboard, roles: APP_ROUTES.dashboard.roles },
-      ]
-    },
-    {
-      heading: 'PRODUCTION',
-      items: [
-        { id: 'batches',   label: APP_ROUTES.batches.title,   icon: Layers,  roles: APP_ROUTES.batches.roles },
-        { id: 'printing',  label: APP_ROUTES.printing.title,  icon: Printer, roles: APP_ROUTES.printing.roles },
+  const groups = isSuperAdmin
+    ? [
         {
-          id: 'products',
-          label: APP_ROUTES.products.title,
-          icon: Package,
-          roles: APP_ROUTES.products.roles,
-          badge: pendingProducts > 0 ? String(pendingProducts) : undefined,
-          badgeColor: 'bg-amber-500'
+          heading: 'CAMEL CLOUD CONTROL',
+          items: [
+            { id: 'superadmin', label: 'Platform & Licenses', icon: ShieldCheck, roles: APP_ROUTES.superadmin.roles },
+          ]
         },
         {
-          id: 'templates',
-          label: APP_ROUTES.templates.title,
-          icon: FileCode,
-          roles: APP_ROUTES.templates.roles,
-          badge: pendingTemplates > 0 ? String(pendingTemplates) : undefined,
-          badgeColor: 'bg-amber-500'
+          heading: 'GLOBAL GOVERNANCE',
+          items: [
+            { id: 'audit',   label: 'Global Audit Trail',   icon: History,           roles: APP_ROUTES.audit.roles },
+            { id: 'backup',  label: 'Cloud Backup & SLA',   icon: HardDriveDownload, roles: APP_ROUTES.backup.roles },
+          ]
+        }
+      ]
+    : [
+        {
+          heading: 'MAIN',
+          items: [
+            { id: 'dashboard', label: APP_ROUTES.dashboard.title, icon: LayoutDashboard, roles: APP_ROUTES.dashboard.roles },
+          ]
         },
-      ]
-    },
-    {
-      heading: 'CONFIGURATION',
-      items: [
-        { id: 'company', label: APP_ROUTES.company.title, icon: Building2, roles: APP_ROUTES.company.roles },
-      ]
-    },
-    {
-      heading: 'ANALYTICS',
-      items: [
-        { id: 'audit',   label: APP_ROUTES.audit.title,   icon: History,           roles: APP_ROUTES.audit.roles },
-        { id: 'reports', label: APP_ROUTES.reports.title, icon: BarChart3,         roles: APP_ROUTES.reports.roles },
-        { id: 'backup',  label: APP_ROUTES.backup.title,  icon: HardDriveDownload, roles: APP_ROUTES.backup.roles },
-      ]
-    },
-  ];
+        {
+          heading: 'PRODUCTION',
+          items: [
+            { id: 'batches',   label: APP_ROUTES.batches.title,   icon: Layers,  roles: APP_ROUTES.batches.roles },
+            { id: 'printing',  label: APP_ROUTES.printing.title,  icon: Printer, roles: APP_ROUTES.printing.roles },
+            {
+              id: 'products',
+              label: APP_ROUTES.products.title,
+              icon: Package,
+              roles: APP_ROUTES.products.roles,
+              badge: pendingProducts > 0 ? String(pendingProducts) : undefined,
+              badgeColor: 'bg-amber-500'
+            },
+            {
+              id: 'templates',
+              label: APP_ROUTES.templates.title,
+              icon: FileCode,
+              roles: APP_ROUTES.templates.roles,
+              badge: pendingTemplates > 0 ? String(pendingTemplates) : undefined,
+              badgeColor: 'bg-amber-500'
+            },
+          ]
+        },
+        {
+          heading: 'CONFIGURATION',
+          items: [
+            { id: 'company', label: APP_ROUTES.company.title, icon: Building2, roles: APP_ROUTES.company.roles },
+          ]
+        },
+        {
+          heading: 'ANALYTICS',
+          items: [
+            { id: 'audit',   label: APP_ROUTES.audit.title,   icon: History,           roles: APP_ROUTES.audit.roles },
+            { id: 'reports', label: APP_ROUTES.reports.title, icon: BarChart3,         roles: APP_ROUTES.reports.roles },
+            { id: 'backup',  label: APP_ROUTES.backup.title,  icon: HardDriveDownload, roles: APP_ROUTES.backup.roles },
+          ]
+        },
+      ];
 
   return (
     <aside className="w-60 bg-white border-r border-slate-200/80 flex flex-col shrink-0 sticky top-0 h-screen z-20 shadow-xs">
       {/* Logo / Brand */}
       <Link
-        to={APP_ROUTES.dashboard.path}
+        to={isSuperAdmin ? APP_ROUTES.superadmin.path : APP_ROUTES.dashboard.path}
         className="h-16 flex items-center gap-3 px-5 border-b border-slate-200/80 shrink-0 hover:bg-slate-50/70 transition-colors"
       >
-        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-500 to-indigo-600 flex items-center justify-center shadow-nav">
-          <FlaskConical className="w-4 h-4 text-white" />
+        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shadow-nav ${
+          isSuperAdmin ? 'bg-gradient-to-br from-purple-600 to-indigo-700' : 'bg-gradient-to-br from-brand-500 to-indigo-600'
+        }`}>
+          {isSuperAdmin ? <ShieldCheck className="w-4 h-4 text-white" /> : <FlaskConical className="w-4 h-4 text-white" />}
         </div>
         <div>
-          <div className="font-extrabold text-sm text-slate-900 tracking-tight">PharmLabel</div>
-          <div className="text-[10px] text-slate-400 font-medium">Serialization Pro</div>
+          <div className="font-extrabold text-sm text-slate-900 tracking-tight">
+            {isSuperAdmin ? 'Camel Cloud' : 'PharmLabel'}
+          </div>
+          <div className="text-[10px] text-slate-400 font-medium">
+            {isSuperAdmin ? 'SuperAdmin Portal' : 'Serialization Pro'}
+          </div>
         </div>
       </Link>
 

@@ -18,7 +18,10 @@ import {
   SuperAdminPage,
 } from './pages';
 
+import { useApp } from './context/AppContext';
+
 const PAGE_COMPONENTS: Record<RouteId, React.ComponentType> = {
+  superadmin: SuperAdminPage,
   dashboard: DashboardPage,
   batches: BatchManagementPage,
   printing: LabelPrintingPage,
@@ -28,7 +31,11 @@ const PAGE_COMPONENTS: Record<RouteId, React.ComponentType> = {
   audit: AuditTrailPage,
   reports: ReportsPage,
   backup: BackupLicensePage,
-  superadmin: SuperAdminPage,
+};
+
+const RoleBasedRedirect: React.FC = () => {
+  const { currentUser } = useApp();
+  return <Navigate to={currentUser.role === 'SuperAdmin' ? APP_ROUTES.superadmin.path : APP_ROUTES.dashboard.path} replace />;
 };
 
 export function App() {
@@ -37,7 +44,7 @@ export function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route element={<MainLayout />}>
-          <Route path="/" element={<Navigate to={APP_ROUTES.dashboard.path} replace />} />
+          <Route path="/" element={<RoleBasedRedirect />} />
           {(Object.keys(APP_ROUTES) as RouteId[]).map((routeId) => {
             const PageComponent = PAGE_COMPONENTS[routeId];
             return (
@@ -52,7 +59,7 @@ export function App() {
               />
             );
           })}
-          <Route path="*" element={<Navigate to={APP_ROUTES.dashboard.path} replace />} />
+          <Route path="*" element={<RoleBasedRedirect />} />
         </Route>
       </Routes>
     </AppProvider>

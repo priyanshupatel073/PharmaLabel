@@ -591,8 +591,8 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenLoginModal }) => {
 
         {/* Settings */}
         <button
-          onClick={() => setActiveTab('company')}
-          title="Company & GS1 Configuration"
+          onClick={() => setActiveTab(currentUser.role === 'SuperAdmin' ? 'superadmin' : 'company')}
+          title={currentUser.role === 'SuperAdmin' ? 'Platform Control (Camel)' : 'Company & GS1 Configuration'}
           className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-300 text-slate-700 flex items-center justify-center hover:bg-slate-100 hover:text-slate-900 transition"
         >
           <Settings className="w-4 h-4" />

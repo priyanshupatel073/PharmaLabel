@@ -20,41 +20,47 @@ export interface AppRouteConfig {
 }
 
 export const APP_ROUTES: Record<RouteId, AppRouteConfig> = {
+  superadmin: {
+    id: 'superadmin',
+    path: '/superadmin',
+    title: 'Platform Control (Camel)',
+    roles: ['SuperAdmin'],
+  },
   dashboard: {
     id: 'dashboard',
     path: '/dashboard',
     title: 'Dashboard',
-    roles: ['SuperAdmin', 'Admin', 'Supervisor', 'Operator'],
+    roles: ['Admin', 'Supervisor', 'Operator'],
   },
   batches: {
     id: 'batches',
     path: '/batches',
     title: 'Batch & Drums',
-    roles: ['SuperAdmin', 'Admin', 'Supervisor', 'Operator'],
+    roles: ['Admin', 'Supervisor', 'Operator'],
   },
   printing: {
     id: 'printing',
     path: '/printing',
     title: 'Label Printing',
-    roles: ['SuperAdmin', 'Supervisor', 'Operator'],
+    roles: ['Supervisor', 'Operator'],
   },
   products: {
     id: 'products',
     path: '/products',
     title: 'Product Master',
-    roles: ['SuperAdmin', 'Admin', 'Supervisor', 'Operator'],
+    roles: ['Admin', 'Supervisor'],
   },
   templates: {
     id: 'templates',
     path: '/templates',
     title: 'Label Templates',
-    roles: ['SuperAdmin', 'Admin', 'Supervisor'],
+    roles: ['Admin', 'Supervisor'],
   },
   company: {
     id: 'company',
     path: '/company',
     title: 'Company & GS1',
-    roles: ['SuperAdmin', 'Admin'],
+    roles: ['Admin'],
   },
   audit: {
     id: 'audit',
@@ -66,7 +72,7 @@ export const APP_ROUTES: Record<RouteId, AppRouteConfig> = {
     id: 'reports',
     path: '/reports',
     title: 'Reports',
-    roles: ['SuperAdmin', 'Admin', 'Supervisor'],
+    roles: ['Admin', 'Supervisor'],
   },
   backup: {
     id: 'backup',
@@ -74,18 +80,13 @@ export const APP_ROUTES: Record<RouteId, AppRouteConfig> = {
     title: 'Licensing & Backup',
     roles: ['SuperAdmin', 'Admin'],
   },
-  superadmin: {
-    id: 'superadmin',
-    path: '/superadmin',
-    title: 'Platform Control (Camel)',
-    roles: ['SuperAdmin'],
-  },
 };
 
-/** Resolve a tab/route ID to its URL path, falling back to /dashboard. */
-export function getRouteForTab(tab: string): string {
+/** Resolve a tab/route ID to its URL path, falling back to role-appropriate home. */
+export function getRouteForTab(tab: string, role?: Role): string {
   const route = APP_ROUTES[tab as RouteId];
-  return route ? route.path : APP_ROUTES.dashboard.path;
+  if (route) return route.path;
+  return role === 'SuperAdmin' ? APP_ROUTES.superadmin.path : APP_ROUTES.dashboard.path;
 }
 
 /** Resolve a URL pathname back to a RouteId for sidebar/tab highlighting. */

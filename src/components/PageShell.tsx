@@ -31,11 +31,11 @@ export const PageShell: React.FC<PageShellProps> = ({ routeId, children }) => {
           permission to view <span className="font-semibold">{route.title}</span>.
         </p>
         <button
-          onClick={() => navigate('/dashboard')}
+          onClick={() => navigate(currentUser.role === 'SuperAdmin' ? '/superadmin' : '/dashboard')}
           className="mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition"
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to Dashboard
+          Back to {currentUser.role === 'SuperAdmin' ? 'Platform Control' : 'Dashboard'}
         </button>
       </div>
     );
