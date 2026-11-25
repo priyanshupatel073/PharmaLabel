@@ -34,7 +34,7 @@ export const LoginPage: React.FC = () => {
 
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<'company' | 'superadmin' | 'recovery'>('company');
+  const [activeTab, setActiveTab] = useState<'company' | 'superadmin'>('company');
   const [selectedOrgId, setSelectedOrgId] = useState<string>(organizations[0]?.id || 'ORG-APEX');
   const [email, setEmail] = useState<string>('supervisor@apexpharma.com');
   const [password, setPassword] = useState<string>('Password@123');
@@ -44,7 +44,7 @@ export const LoginPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   // Handle Tab Switch
-  const handleTabChange = (tab: 'company' | 'superadmin' | 'recovery') => {
+  const handleTabChange = (tab: 'company' | 'superadmin') => {
     setActiveTab(tab);
     setErrorMessage('');
     if (tab === 'superadmin') {
@@ -188,18 +188,6 @@ export const LoginPage: React.FC = () => {
           >
             Camel SuperAdmin
           </button>
-
-          <button
-            type="button"
-            onClick={() => handleTabChange('recovery')}
-            className={`flex-1 py-2 px-3 rounded-2xl text-center text-xs transition-all ${
-              activeTab === 'recovery'
-                ? 'bg-white text-[#0d3b75] font-bold shadow-xs'
-                : 'text-[#6280a8] hover:text-[#0d3b75]'
-            }`}
-          >
-            Password recovery
-          </button>
         </div>
 
         {/* Card Body */}
@@ -221,46 +209,11 @@ export const LoginPage: React.FC = () => {
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0d3b75] tracking-tight text-center mb-6">
-            {activeTab === 'superadmin' ? 'SuperAdmin Sign In' : activeTab === 'recovery' ? 'Password Recovery' : 'Sign In'}
+            {activeTab === 'superadmin' ? 'SuperAdmin Sign In' : 'Sign In'}
           </h1>
 
-          {/* If Recovery Tab */}
-          {activeTab === 'recovery' ? (
-            <div className="space-y-4 py-2">
-              <p className="text-xs text-[#527096] text-center leading-relaxed">
-                As per 21 CFR Part 11 security policies, password resets require Quality Assurance or SuperAdmin authorization.
-              </p>
-              <div>
-                <label className="text-xs font-bold text-[#0d3b75] ml-3 mb-1.5 block">
-                  Work Email Address
-                </label>
-                <div className="relative flex items-center bg-[#f7faff] border border-[#d2e2f3] rounded-full overflow-hidden focus-within:border-[#0088ff] focus-within:ring-2 focus-within:ring-[#0088ff]/20">
-                  <div className="w-11 h-11 flex items-center justify-center border-r border-[#dbe7f5] text-[#0080ff] shrink-0">
-                    <Mail className="w-4 h-4" />
-                  </div>
-                  <input
-                    type="email"
-                    placeholder="user@pharma.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="flex-1 bg-transparent px-3.5 py-2.5 text-xs text-[#0d3b75] font-medium placeholder:text-[#9ab1ce] focus:outline-none"
-                  />
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  alert(`Password reset link dispatched to ${email || 'your compliance email'}. Verified by QA regulatory trail.`);
-                  setActiveTab('company');
-                }}
-                className="w-full py-3 rounded-full text-white font-bold text-xs bg-gradient-to-r from-[#0055ff] via-[#0088ff] to-[#00d4ff] hover:opacity-95 shadow-md shadow-blue-500/25 transition mt-2"
-              >
-                Request Authorization Link
-              </button>
-            </div>
-          ) : (
-            /* Main Form */
-            <form onSubmit={handleLoginSubmit} className="space-y-4">
+          {/* Main Form */}
+          <form onSubmit={handleLoginSubmit} className="space-y-4">
               {/* Field 1: Organization Dropdown (Only for Company Login) */}
               {activeTab === 'company' && (
                 <div>
@@ -432,7 +385,6 @@ export const LoginPage: React.FC = () => {
                 )}
               </button>
             </form>
-          )}
 
           {/* 1-Click Fast Demo Login Matrix (Matching Light UI) */}
           <div className="mt-6 pt-5 border-t border-[#e2edfa]">
