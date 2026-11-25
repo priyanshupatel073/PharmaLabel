@@ -7,3 +7,5 @@ export { CompanySettingsPage } from './CompanySettingsPage';
 export { AuditTrailPage } from './AuditTrailPage';
 export { ReportsPage } from './ReportsPage';
 export { BackupLicensePage } from './BackupLicensePage';
+export { LoginPage } from './LoginPage';
+export { SuperAdminPage } from './SuperAdminPage';

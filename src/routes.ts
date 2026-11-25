@@ -9,7 +9,8 @@ export type RouteId =
   | 'company'
   | 'audit'
   | 'reports'
-  | 'backup';
+  | 'backup'
+  | 'superadmin';
 
 export interface AppRouteConfig {
   id: RouteId;
@@ -72,6 +73,12 @@ export const APP_ROUTES: Record<RouteId, AppRouteConfig> = {
     path: '/backup',
     title: 'Licensing & Backup',
     roles: ['SuperAdmin', 'Admin'],
+  },
+  superadmin: {
+    id: 'superadmin',
+    path: '/superadmin',
+    title: 'Platform Control (Camel)',
+    roles: ['SuperAdmin'],
   },
 };
 

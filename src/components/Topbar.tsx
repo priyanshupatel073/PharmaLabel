@@ -6,7 +6,8 @@ import {
   Search, Bell, Settings, ChevronDown,
   KeyRound, Menu, CheckCircle2, AlertTriangle,
   FileCheck, Layers, ArrowRight, ShieldCheck,
-  X, Check, Package, Barcode, FileCode, History
+  X, Check, Package, Barcode, FileCode, History,
+  LogOut, Building2, Clock
 } from 'lucide-react';
 import { Role } from '../types';
 import { INITIAL_USERS } from '../utils/mockData';
@@ -32,7 +33,8 @@ const ROLE_DOT: Record<Role, string> = {
 export const Topbar: React.FC<TopbarProps> = ({ onOpenLoginModal }) => {
   const {
     currentUser, switchRole, lockoutRemaining, resetLockout,
-    auditLogs, products, templates, batches, setActiveTab
+    auditLogs, products, templates, batches, setActiveTab,
+    currentOrganization, sessionRemaining, logout
   } = useApp();
 
   const navigate = useNavigate();
@@ -296,22 +298,34 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenLoginModal }) => {
 
       <div className="flex items-center gap-2 ml-auto">
 
-        {/* Quick Role Switcher Pills */}
-        <div className="hidden md:flex items-center bg-slate-100 border border-slate-300 rounded-xl px-2 py-1 gap-1">
-          <span className="text-[10px] font-black text-slate-600 uppercase tracking-wider mr-1 pl-1">Role:</span>
-          {roles.map(r => (
-            <button
-              key={r}
-              onClick={() => switchRole(r)}
-              className={`text-[11px] px-2.5 py-1 rounded-lg font-bold transition ${
-                currentUser.role === r
-                  ? ROLE_COLORS[r] + ' border shadow-xs'
-                  : 'text-slate-700 hover:bg-slate-200/80 hover:text-slate-900'
-              }`}
-            >
-              {r}
-            </button>
-          ))}
+        {/* Organization / Tenant Badge */}
+        <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs shadow-2xs">
+          {currentUser.role === 'SuperAdmin' ? (
+            <>
+              <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />
+              <span className="font-bold text-slate-800">Camel Communication</span>
+              <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200">
+                PLATFORM OWNER
+              </span>
+            </>
+          ) : (
+            <>
+              <Building2 className="w-3.5 h-3.5 text-brand-600" />
+              <span className="font-bold text-slate-800 truncate max-w-[170px]">{currentOrganization?.name || 'Apex Healthcare Ltd.'}</span>
+              <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                {currentOrganization?.id || 'ORG-APEX'}
+              </span>
+            </>
+          )}
+        </div>
+
+        {/* 21 CFR Part 11 Session Inactivity Timer */}
+        <div
+          className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600 font-medium"
+          title="21 CFR Part 11 Session Inactivity Countdown (60 min maximum)"
+        >
+          <Clock className="w-3.5 h-3.5 text-slate-400" />
+          <span className="font-mono">{Math.floor(sessionRemaining / 60)}m {sessionRemaining % 60}s</span>
         </div>
 
         {/* Notification Bell Dropdown */}
@@ -522,32 +536,58 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenLoginModal }) => {
           </button>
 
           {userMenuOpen && (
-            <div className="absolute right-0 top-full mt-2 w-52 bg-white rounded-xl border border-slate-200 shadow-cardHov z-50 overflow-hidden">
-              <div className="p-3 border-b border-slate-100">
-                <div className="font-bold text-sm text-slate-900">{currentUser.name}</div>
-                <div className="text-[11px] text-slate-500">{currentUser.email}</div>
+            <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl border border-slate-200 shadow-xl z-50 overflow-hidden animate-in fade-in duration-150">
+              <div className="p-3.5 border-b border-slate-100 bg-slate-50/70">
+                <div className="flex items-center gap-2">
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs border ${ROLE_COLORS[currentUser.role]}`}>
+                    {currentUser.name.charAt(0)}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-xs text-slate-900 truncate">{currentUser.name}</div>
+                    <div className="text-[10px] text-slate-500 truncate">{currentUser.email}</div>
+                  </div>
+                </div>
+                <div className="mt-2 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[10px]">
+                  <span className="text-slate-500">Department:</span>
+                  <span className="font-semibold text-slate-700 truncate max-w-[130px]">{currentUser.department}</span>
+                </div>
               </div>
-              <div className="p-2 space-y-0.5">
-                {roles.map(r => {
-                  const u = INITIAL_USERS.find(u => u.role === r)!;
-                  return (
-                    <button
-                      key={r}
-                      onClick={() => { switchRole(r); setUserMenuOpen(false); }}
-                      className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs hover:bg-slate-50 transition ${
-                        currentUser.role === r ? 'bg-brand-50' : ''
-                      }`}
-                    >
-                      <div className={`w-2 h-2 rounded-full ${ROLE_DOT[r]}`} />
-                      <span className="font-medium text-slate-800">{u.name}</span>
-                      <span className="ml-auto text-[10px] text-slate-400">{r}</span>
-                    </button>
-                  );
-                })}
+
+              <div className="p-2 space-y-1">
+                <button
+                  onClick={() => {
+                    navigate('/login');
+                    setUserMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-slate-700 hover:bg-slate-100 transition font-medium"
+                >
+                  <KeyRound className="w-4 h-4 text-slate-500" />
+                  <span>Switch Account / Portal</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    logout();
+                    setUserMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-rose-600 hover:bg-rose-50 transition font-bold"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Sign Out (Session Terminate)</span>
+                </button>
               </div>
             </div>
           )}
         </div>
+
+        {/* Quick Logout Button */}
+        <button
+          onClick={logout}
+          title="Sign Out (Session Terminate)"
+          className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-300 text-rose-600 flex items-center justify-center hover:bg-rose-50 hover:border-rose-300 hover:text-rose-700 transition"
+        >
+          <LogOut className="w-4 h-4" />
+        </button>
 
         {/* Settings */}
         <button

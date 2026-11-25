@@ -5,7 +5,7 @@ import { APP_ROUTES, getRouteForTab } from '../routes';
 import {
   LayoutDashboard, Building2, Package, Layers,
   FileCode, Printer, History, BarChart3,
-  HardDriveDownload, FlaskConical
+  HardDriveDownload, FlaskConical, ShieldCheck
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -15,6 +15,12 @@ export const Sidebar: React.FC = () => {
   const pendingTemplates = templates.filter(t => t.status === 'In Review' || t.status === 'Draft').length;
 
   const groups = [
+    {
+      heading: 'PLATFORM OWNER',
+      items: [
+        { id: 'superadmin', label: APP_ROUTES.superadmin.title, icon: ShieldCheck, roles: APP_ROUTES.superadmin.roles },
+      ]
+    },
     {
       heading: 'MAIN',
       items: [

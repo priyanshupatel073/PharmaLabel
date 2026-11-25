@@ -1,12 +1,18 @@
 import React, { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, Navigate } from 'react-router-dom';
+import { useApp } from '../context/AppContext';
 import { Sidebar } from '../components/Sidebar';
 import { Topbar } from '../components/Topbar';
 import { LoginModal } from '../components/LoginModal';
 
 /** Persistent application shell shared across all routed frontend pages. */
 export const MainLayout: React.FC = () => {
+  const { isAuthenticated } = useApp();
   const [loginOpen, setLoginOpen] = useState(false);
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
 
   return (
     <div className="min-h-screen bg-canvas flex font-sans">

@@ -1,4 +1,43 @@
-import { User, CompanySettings, Product, Batch, Drum, DrumStatus, LabelTemplate, AuditLog, LicenseInfo } from '../types';
+import { User, CompanySettings, Product, Batch, Drum, DrumStatus, LabelTemplate, AuditLog, LicenseInfo, Organization } from '../types';
+
+export const INITIAL_ORGANIZATIONS: Organization[] = [
+  {
+    id: 'ORG-APEX',
+    name: 'Apex Healthcare Ltd.',
+    plantLocation: 'Baddi, Himachal Pradesh (Unit 03)',
+    contactEmail: 'compliance@apexpharma.com',
+    gs1Prefix: '8901234',
+    edition: 'Enterprise Unlimited Traceability',
+    licenseStatus: 'ACTIVE',
+    validUntil: '2027-12-31',
+    totalDrumsPrinted: 18450,
+    createdAt: '2026-01-10'
+  },
+  {
+    id: 'ORG-SUNPHARMA',
+    name: 'Sun Pharma Industries Ltd.',
+    plantLocation: 'Halol, Gujarat (API Block 02)',
+    contactEmail: 'qa.halol@sunpharma.com',
+    gs1Prefix: '8904321',
+    edition: 'Enterprise Unlimited Traceability',
+    licenseStatus: 'ACTIVE',
+    validUntil: '2027-06-30',
+    totalDrumsPrinted: 42100,
+    createdAt: '2026-02-15'
+  },
+  {
+    id: 'ORG-CIPLA',
+    name: 'Cipla Laboratories Ltd.',
+    plantLocation: 'Kurkumbh, Maharashtra (OEB-4 Plant)',
+    contactEmail: 'it.regulatory@cipla.com',
+    gs1Prefix: '8909876',
+    edition: 'Standard GxP Plant Edition',
+    licenseStatus: 'WARNING',
+    validUntil: '2026-12-15',
+    totalDrumsPrinted: 8900,
+    createdAt: '2026-03-01'
+  }
+];
 
 export const INITIAL_USERS: User[] = [
   {

@@ -191,3 +191,16 @@ export interface LicenseInfo {
   maxDrumsAllowed: string;
   consumedDrums: number;
 }
+
+export interface Organization {
+  id: string;
+  name: string;
+  plantLocation: string;
+  contactEmail: string;
+  gs1Prefix: string;
+  edition: 'Enterprise Unlimited Traceability' | 'Standard GxP Plant Edition' | 'Multi-Plant Global';
+  licenseStatus: 'ACTIVE' | 'WARNING' | 'EXPIRED' | 'SUSPENDED';
+  validUntil: string;
+  totalDrumsPrinted: number;
+  createdAt: string;
+}

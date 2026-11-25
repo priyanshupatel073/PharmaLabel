@@ -14,6 +14,8 @@ import {
   AuditTrailPage,
   ReportsPage,
   BackupLicensePage,
+  LoginPage,
+  SuperAdminPage,
 } from './pages';
 
 const PAGE_COMPONENTS: Record<RouteId, React.ComponentType> = {
@@ -26,12 +28,14 @@ const PAGE_COMPONENTS: Record<RouteId, React.ComponentType> = {
   audit: AuditTrailPage,
   reports: ReportsPage,
   backup: BackupLicensePage,
+  superadmin: SuperAdminPage,
 };
 
 export function App() {
   return (
     <AppProvider>
       <Routes>
+        <Route path="/login" element={<LoginPage />} />
         <Route element={<MainLayout />}>
           <Route path="/" element={<Navigate to={APP_ROUTES.dashboard.path} replace />} />
           {(Object.keys(APP_ROUTES) as RouteId[]).map((routeId) => {

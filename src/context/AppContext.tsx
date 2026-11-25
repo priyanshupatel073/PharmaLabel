@@ -12,10 +12,12 @@ import {
   LicenseInfo,
   LabelType,
   LabelSnapshot,
-  LabelDimension
+  LabelDimension,
+  Organization
 } from '../types';
 import {
   INITIAL_USERS,
+  INITIAL_ORGANIZATIONS,
   INITIAL_COMPANY_SETTINGS,
   INITIAL_PRODUCTS,
   INITIAL_BATCHES,
@@ -39,6 +41,14 @@ interface AppContextType {
   generatedSnapshots: LabelSnapshot[];
   
   // Auth & Roles
+  isAuthenticated: boolean;
+  currentOrganization: Organization;
+  organizations: Organization[];
+  login: (user: User, org?: Organization) => void;
+  logout: () => void;
+  sessionRemaining: number;
+  onboardOrganization: (org: Omit<Organization, 'id' | 'createdAt' | 'totalDrumsPrinted'>) => void;
+  updateOrganizationLicense: (orgId: string, status: Organization['licenseStatus'], validUntil?: string) => void;
   switchRole: (role: Role) => void;
   failedLoginAttempts: number;
   lockoutRemaining: number;
@@ -127,6 +137,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : INITIAL_LICENSE;
   });
 
+  const [organizations, setOrganizations] = useState<Organization[]>(() => {
+    const saved = localStorage.getItem('pharmalabel_orgs');
+    return saved ? JSON.parse(saved) : INITIAL_ORGANIZATIONS;
+  });
+
+  const [currentOrganization, setCurrentOrganization] = useState<Organization>(() => {
+    const saved = localStorage.getItem('pharmalabel_current_org');
+    return saved ? JSON.parse(saved) : INITIAL_ORGANIZATIONS[0];
+  });
+
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    const saved = localStorage.getItem('pharmalabel_auth');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const [sessionRemaining, setSessionRemaining] = useState<number>(3600);
+
   const [generatedSnapshots, setGeneratedSnapshots] = useState<LabelSnapshot[]>(() => {
     const saved = localStorage.getItem('pharmalabel_snapshots');
     return saved ? JSON.parse(saved) : [];
@@ -174,6 +201,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('pharmalabel_license', JSON.stringify(license));
   }, [license]);
 
+  useEffect(() => {
+    localStorage.setItem('pharmalabel_orgs', JSON.stringify(organizations));
+  }, [organizations]);
+
+  useEffect(() => {
+    localStorage.setItem('pharmalabel_current_org', JSON.stringify(currentOrganization));
+  }, [currentOrganization]);
+
+  useEffect(() => {
+    localStorage.setItem('pharmalabel_auth', String(isAuthenticated));
+  }, [isAuthenticated]);
+
+  // Session timer countdown (60 minutes inactivity)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const interval = setInterval(() => {
+      setSessionRemaining(prev => {
+        if (prev <= 1) {
+          setIsAuthenticated(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
+
   // Lockout countdown timer
   useEffect(() => {
     if (lockoutRemaining <= 0) return;
@@ -189,6 +243,75 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logAudit('ROLE_SWITCH', 'Authentication', {
       newValue: `Switched view to ${role} (${targetUser.name})`,
       reason: 'Interactive demonstration evaluation'
+    });
+  };
+
+  const login = (user: User, org?: Organization) => {
+    setCurrentUser(user);
+    if (org) {
+      setCurrentOrganization(org);
+    } else if (user.role === 'SuperAdmin') {
+      setCurrentOrganization({
+        id: 'PLATFORM-CAMEL',
+        name: 'Camel Communication (Platform Owner)',
+        plantLocation: 'Global Cloud Control & Licensing',
+        contactEmail: 'admin@camelcomm.in',
+        gs1Prefix: '8900000',
+        edition: 'Multi-Plant Global',
+        licenseStatus: 'ACTIVE',
+        validUntil: '2035-12-31',
+        totalDrumsPrinted: 1420500,
+        createdAt: '2025-01-01'
+      });
+    }
+    setIsAuthenticated(true);
+    setSessionRemaining(3600);
+    resetLockout();
+    logAudit('USER_LOGIN', 'Authentication', {
+      newValue: `User ${user.name} logged in as ${user.role} [${org?.name || 'Platform SuperAdmin'}]`,
+      reason: 'Cryptographic session initialized'
+    });
+  };
+
+  const logout = () => {
+    logAudit('USER_LOGOUT', 'Authentication', {
+      oldValue: `${currentUser.name} (${currentUser.role})`,
+      newValue: 'Session Terminated',
+      reason: 'Manual user sign-out'
+    });
+    setIsAuthenticated(false);
+    navigate('/login');
+  };
+
+  const onboardOrganization = (orgData: Omit<Organization, 'id' | 'createdAt' | 'totalDrumsPrinted'>) => {
+    const newOrg: Organization = {
+      ...orgData,
+      id: `ORG-${orgData.name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`,
+      totalDrumsPrinted: 0,
+      createdAt: new Date().toISOString().split('T')[0]
+    };
+    setOrganizations(prev => [newOrg, ...prev]);
+    logAudit('TENANT_ONBOARDED', 'SuperAdmin Licensing', {
+      newValue: `Onboarded ${newOrg.name} (${newOrg.id}) with GS1 Prefix ${newOrg.gs1Prefix}`,
+      reason: 'New client enterprise cloud license activated'
+    });
+  };
+
+  const updateOrganizationLicense = (orgId: string, status: Organization['licenseStatus'], validUntil?: string) => {
+    setOrganizations(prev => prev.map(o => {
+      if (o.id === orgId) {
+        return {
+          ...o,
+          licenseStatus: status,
+          validUntil: validUntil || o.validUntil
+        };
+      }
+      return o;
+    }));
+    logAudit('LICENSE_STATUS_MODIFIED', 'SuperAdmin Licensing', {
+      oldValue: `Org ${orgId}`,
+      newValue: `Status changed to ${status}${validUntil ? `, Valid until: ${validUntil}` : ''}`,
+      reason: 'SuperAdmin manual license entitlement update'
     });
   };
 
@@ -848,6 +971,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activeTab,
         setActiveTab,
         generatedSnapshots,
+        isAuthenticated,
+        currentOrganization,
+        organizations,
+        login,
+        logout,
+        sessionRemaining,
+        onboardOrganization,
+        updateOrganizationLicense,
         switchRole,
         failedLoginAttempts,
         lockoutRemaining,
