@@ -163,9 +163,9 @@ export const LabelPrintingView: React.FC = () => {
                   return (
                     <div key={d.drumNumber}
                       className={`p-3 rounded-xl border text-center transition text-xs flex flex-col justify-between ${isDamaged ? 'border-rose-300 bg-rose-50/80 shadow-xs' :
-                          isChecked ? 'border-2 border-brand-500 bg-blue-50/90 shadow-sm ring-1 ring-brand-500/20' :
-                            isPrinted ? 'border-emerald-300 bg-emerald-50/70 shadow-xs' :
-                              'border-slate-300 bg-white hover:border-brand-400 hover:bg-slate-50 shadow-xs'
+                        isChecked ? 'border-2 border-brand-500 bg-blue-50/90 shadow-sm ring-1 ring-brand-500/20' :
+                          isPrinted ? 'border-emerald-300 bg-emerald-50/70 shadow-xs' :
+                            'border-slate-300 bg-white hover:border-brand-400 hover:bg-slate-50 shadow-xs'
                         }`}>
                       <div className="cursor-pointer" onClick={() => toggle(d.drumNumber)}>
                         <div className={`font-black text-sm font-mono ${isChecked ? 'text-brand-900' : isDamaged ? 'text-rose-800' : isPrinted ? 'text-emerald-800' : 'text-slate-900'}`}>
