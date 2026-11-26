@@ -252,6 +252,7 @@ try {
         );
 
         // 6. Return Success Payload to SuperAdmin Frontend
+        // Zero-Knowledge 21 CFR Part 11: Temporary password is sent ONLY to client email via SMTP, NEVER exposed to frontend
         sendSuccess([
             'organization' => [
                 'id'                => $orgId,
@@ -272,9 +273,14 @@ try {
                 'role'       => 'Admin',
                 'department' => 'Plant IT & Serialization Admin'
             ],
-            'temporaryPassword' => $tempPassword,
-            'emailDispatch'     => $emailDispatch
-        ], "Organization '$name' successfully onboarded and credentials dispatched to $contactEmail.", 201);
+            'emailDispatch'     => [
+                'success'       => $emailDispatch['success'] ?? true,
+                'dispatched'    => $emailDispatch['dispatched'] ?? false,
+                'dispatch_note' => $emailDispatch['dispatch_note'] ?? '',
+                'recipient'     => $contactEmail,
+                'subject'       => $emailDispatch['subject'] ?? ''
+            ]
+        ], "Organization '$name' successfully onboarded. Credentials dispatched to $contactEmail via authenticated SMTP.", 201);
     }
 
     // ------------------------------------------------------------------------

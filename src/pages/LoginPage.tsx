@@ -50,14 +50,10 @@ export const LoginPage: React.FC = () => {
   useEffect(() => {
     const prefillEmail = localStorage.getItem('pharmalabel_prefill_email');
     const prefillOrg = localStorage.getItem('pharmalabel_prefill_org');
-    const prefillPass = localStorage.getItem('pharmalabel_prefill_pass');
     if (prefillEmail && prefillOrg) {
       setActiveTab('company');
       setSelectedOrgId(prefillOrg);
       setEmail(prefillEmail);
-      if (prefillPass) {
-        setPassword(prefillPass);
-      }
       localStorage.removeItem('pharmalabel_prefill_email');
       localStorage.removeItem('pharmalabel_prefill_org');
       localStorage.removeItem('pharmalabel_prefill_pass');

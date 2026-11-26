@@ -181,7 +181,7 @@ function sendOnboardingEmail(
         } catch (Throwable $e) {}
     }
 
-    // 2. Always persist to backend/logs/sent_emails.log (Fail-safe local audit trail)
+    // 2. Persist dispatch audit entry to backend/logs/sent_emails.log
     $logsDir = __DIR__ . '/../logs';
     if (!is_dir($logsDir)) {
         @mkdir($logsDir, 0755, true);
@@ -192,11 +192,8 @@ function sendOnboardingEmail(
     $logEntry .= "RECIPIENT : $adminEmail ($adminName)\n";
     $logEntry .= "SUBJECT   : $subject\n";
     $logEntry .= "ORG_ID    : " . ($org['id'] ?? '') . "\n";
-    $logEntry .= "TEMP_PASS : $tempPassword\n";
-    $logEntry .= "STATUS    : " . ($mailSent ? "SUCCESSFULLY DISPATCHED TO INBOX" : "STORED IN SERVER DISPATCH LOG") . "\n";
+    $logEntry .= "STATUS    : " . ($mailSent ? "SUCCESSFULLY DISPATCHED TO INBOX VIA SMTP" : "STORED IN SERVER DISPATCH LOG") . "\n";
     $logEntry .= "DISPATCH  : $dispatchNote\n";
-    $logEntry .= "--------------------------------- HTML BODY ------------------------------------\n";
-    $logEntry .= $htmlContent . "\n";
     $logEntry .= "================================================================================\n\n";
 
     @file_put_contents($logsDir . '/sent_emails.log', $logEntry, FILE_APPEND | LOCK_EX);
@@ -207,7 +204,6 @@ function sendOnboardingEmail(
         'dispatch_note' => $dispatchNote,
         'recipient'     => $adminEmail,
         'subject'       => $subject,
-        'temp_password' => $tempPassword,
         'log_file'      => 'backend/logs/sent_emails.log'
     ];
 }

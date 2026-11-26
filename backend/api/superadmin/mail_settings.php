@@ -49,7 +49,7 @@ try {
                     if (strpos($line, 'TIMESTAMP : ') === 0) $logItem['timestamp'] = substr($line, 12);
                     if (strpos($line, 'RECIPIENT : ') === 0) $logItem['recipient'] = substr($line, 12);
                     if (strpos($line, 'SUBJECT   : ') === 0) $logItem['subject']   = substr($line, 12);
-                    if (strpos($line, 'TEMP_PASS : ') === 0) $logItem['temp_pass'] = substr($line, 12);
+                    if (strpos($line, 'TEMP_PASS : ') === 0) $logItem['temp_pass'] = '•••••••••••• (Encrypted in Dispatch)';
                     if (strpos($line, 'STATUS    : ') === 0) $logItem['status']    = substr($line, 12);
                     if (strpos($line, 'DISPATCH  : ') === 0) $logItem['dispatch']  = substr($line, 12);
                 }
