@@ -137,6 +137,56 @@ try {
         sendError('Access Denied: User does not belong to the selected plant organization.', 403);
     }
 
+    // 2. Tenant License SLA Verification (BEFORE password check and BEFORE attempt counting!)
+    $tenantOrg = null;
+    if ($user['role'] !== 'SuperAdmin') {
+        $checkOrgId = $orgId ?: $user['organization_id'];
+        if (!empty($checkOrgId)) {
+            $stmtOrg = $pdo->prepare("SELECT id, name, license_status, valid_until, gs1_company_prefix FROM `organizations` WHERE id = :org_id LIMIT 1");
+            $stmtOrg->execute([':org_id' => $checkOrgId]);
+            $tenantOrg = $stmtOrg->fetch(PDO::FETCH_ASSOC);
+
+            if (!$tenantOrg) {
+                sendError("Access Denied: Organization tenant '$checkOrgId' not found in database.", 403);
+            }
+
+            $status = strtoupper((string)$tenantOrg['license_status']);
+            $validUntil = (string)$tenantOrg['valid_until'];
+            $today = date('Y-m-d');
+
+            if ($status === 'SUSPENDED' || $status === 'INACTIVE' || $status === 'DEACTIVATED') {
+                logAuditTrail($pdo, 'LOGIN_BLOCKED_LICENSE_SUSPENDED', 'Licensing', [
+                    'reason' => "Login blocked. Tenant {$tenantOrg['name']} license is $status.",
+                    'outcome' => 'FAILED'
+                ], $checkOrgId, $user);
+
+                sendError("Access Denied: License for '{$tenantOrg['name']}' is SUSPENDED. Please contact Camel Communication to reactivate.", 403, [
+                    'license_blocked' => true,
+                    'license_status' => $status
+                ]);
+            }
+
+            if ($status === 'EXPIRED' || $validUntil < $today) {
+                logAuditTrail($pdo, 'LOGIN_BLOCKED_LICENSE_EXPIRED', 'Licensing', [
+                    'reason' => "Login blocked. Tenant {$tenantOrg['name']} license has EXPIRED.",
+                    'outcome' => 'FAILED'
+                ], $checkOrgId, $user);
+
+                sendError("Access Denied: License for '{$tenantOrg['name']}' is EXPIRED. Please contact Camel Communication for renewal.", 403, [
+                    'license_blocked' => true,
+                    'license_status' => 'EXPIRED'
+                ]);
+            }
+        }
+    } else {
+        $tenantOrg = [
+            'id' => 'PLATFORM-CAMEL',
+            'name' => 'Camel Communication (Platform Owner)',
+            'license_status' => 'ACTIVE',
+            'valid_until' => '2035-12-31'
+        ];
+    }
+
     $now = time();
 
     // 2. Check if account is currently locked out
@@ -239,8 +289,7 @@ try {
         ':id'         => $user['id']
     ]);
 
-    // 5. Verify Tenant License (If not SuperAdmin)
-    $tenantOrg = verifyTenantLicense($pdo, $user, true);
+    // 5. Tenant License is already verified in Step 2
 
     // 6. Generate Cryptographic Bearer Token (60-minute inactivity timeout)
     $token = generateToken($user, 3600);

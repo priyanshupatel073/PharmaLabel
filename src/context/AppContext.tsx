@@ -335,6 +335,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return o;
     }));
+
+    // Sync to backend database
+    try {
+      fetch('/api/superadmin/licenses.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          organization_id: orgId,
+          license_status: status,
+          valid_until: validUntil
+        })
+      }).catch(() => {});
+    } catch {}
+
     logAudit('LICENSE_STATUS_MODIFIED', 'SuperAdmin Licensing', {
       oldValue: `Org ${orgId}`,
       newValue: `Status changed to ${status}${validUntil ? `, Valid until: ${validUntil}` : ''}`,

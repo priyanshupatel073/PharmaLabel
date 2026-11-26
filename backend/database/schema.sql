@@ -285,8 +285,8 @@ CREATE TABLE `audit_logs` (
 -- 1. Initial Organizations
 INSERT INTO `organizations` (`id`, `name`, `plant_location`, `contact_email`, `gs1_company_prefix`, `edition`, `license_status`, `valid_until`, `total_drums_printed`) VALUES
 ('ORG-APEX', 'Apex Healthcare Ltd.', 'Plot No. 42-45, Phase III, Industrial Area, Baddi, HP - 173205', 'compliance@apexpharma.com', '8901234', 'Enterprise Unlimited Traceability', 'ACTIVE', '2027-12-31', 18450),
-('ORG-SUNPHARMA', 'Sun Pharma Industries Ltd.', 'Halol, Gujarat (API Block 02)', 'qa.halol@sunpharma.com', '8904321', 'Enterprise Unlimited Traceability', 'ACTIVE', '2027-06-30', 42100),
-('ORG-CIPLA', 'Cipla Laboratories Ltd.', 'Kurkumbh, Maharashtra (OEB-4 Plant)', 'it.regulatory@cipla.com', '8909876', 'Standard GxP Plant Edition', 'WARNING', '2026-12-15', 8900);
+('ORG-SUNPHARMA', 'Sun Pharma Industries Ltd.', 'Halol, Gujarat (API Block 02)', 'qa.halol@sunpharma.com', '8904321', 'Enterprise Unlimited Traceability', 'EXPIRED', '2025-12-31', 42100),
+('ORG-CIPLA', 'Cipla Laboratories Ltd.', 'Kurkumbh, Maharashtra (OEB-4 Plant)', 'it.regulatory@cipla.com', '8909876', 'Standard GxP Plant Edition', 'SUSPENDED', '2025-10-31', 8900);
 
 -- 2. Initial Users ($2y$10$wT4cE6wZgWj29LdY7gZ7.u5uH9p60mDkIom8O0j7gK3dC1W8IqG4q = Password@123)
 INSERT INTO `users` (`id`, `organization_id`, `name`, `email`, `password_hash`, `role`, `department`, `permissions`, `status`) VALUES

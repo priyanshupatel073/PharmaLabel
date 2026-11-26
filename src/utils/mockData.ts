@@ -20,8 +20,8 @@ export const INITIAL_ORGANIZATIONS: Organization[] = [
     contactEmail: 'qa.halol@sunpharma.com',
     gs1Prefix: '8904321',
     edition: 'Enterprise Unlimited Traceability',
-    licenseStatus: 'ACTIVE',
-    validUntil: '2027-06-30',
+    licenseStatus: 'EXPIRED',
+    validUntil: '2025-12-31',
     totalDrumsPrinted: 42100,
     createdAt: '2026-02-15'
   },
@@ -32,8 +32,8 @@ export const INITIAL_ORGANIZATIONS: Organization[] = [
     contactEmail: 'it.regulatory@cipla.com',
     gs1Prefix: '8909876',
     edition: 'Standard GxP Plant Edition',
-    licenseStatus: 'WARNING',
-    validUntil: '2026-12-15',
+    licenseStatus: 'SUSPENDED',
+    validUntil: '2025-10-31',
     totalDrumsPrinted: 8900,
     createdAt: '2026-03-01'
   }

@@ -165,6 +165,19 @@ export const LoginPage: React.FC = () => {
       return;
     }
 
+    // License Check for Client Plants (Blocked licenses do not start attempt session)
+    if (activeTab === 'company') {
+      const matchedOrg = organizations.find(o => o.id === selectedOrgId);
+      if (matchedOrg) {
+        const isDateExpired = matchedOrg.validUntil && matchedOrg.validUntil < new Date().toISOString().split('T')[0];
+        if (matchedOrg.licenseStatus === 'EXPIRED' || matchedOrg.licenseStatus === 'SUSPENDED' || isDateExpired) {
+          const reason = matchedOrg.licenseStatus === 'SUSPENDED' ? 'SUSPENDED' : 'EXPIRED';
+          setErrorMessage(`Access Denied: ${matchedOrg.name} license is ${reason}. Please contact Camel Communication for renewal.`);
+          return;
+        }
+      }
+    }
+
     setIsSubmitting(true);
     setErrorMessage('');
 
@@ -219,7 +232,10 @@ export const LoginPage: React.FC = () => {
         }
       } else {
         // Handle failed login
-        if (response.status === 403 && (res.errors?.locked || res.message?.includes('locked') || res.message?.includes('consecutive'))) {
+        if (res.errors?.license_blocked || res.message?.includes('EXPIRED') || res.message?.includes('SUSPENDED')) {
+          // Company license block -> do NOT count as password attempt!
+          setErrorMessage(res.message);
+        } else if (response.status === 403 && (res.errors?.locked || res.message?.includes('locked') || res.message?.includes('consecutive'))) {
           // Lockout triggered in database for this email!
           const remainingSec = res.errors?.remaining_seconds || 900;
           triggerLockoutForEmail(email, remainingSec);
@@ -389,10 +405,25 @@ export const LoginPage: React.FC = () => {
                     <ChevronDown className="w-4 h-4" />
                   </div>
                 </div>
-                <div className="text-[10px] text-[#6b88b0] ml-3 mt-1 flex items-center justify-between">
+                <div className="text-[10px] text-[#6b88b0] ml-3 mt-1.5 flex items-center justify-between">
                   <span>{selectedOrg?.plantLocation}</span>
-                  <span className="font-bold text-emerald-600 font-mono">GS1: {selectedOrg?.gs1Prefix}</span>
+                  <span className={`font-bold font-mono px-2 py-0.5 rounded-full text-[9px] ${
+                    selectedOrg?.licenseStatus === 'ACTIVE' 
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                      : selectedOrg?.licenseStatus === 'WARNING'
+                      ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                      : 'bg-rose-50 text-rose-700 border border-rose-200 font-extrabold'
+                  }`}>
+                    License: {selectedOrg?.licenseStatus}
+                  </span>
                 </div>
+
+                {selectedOrg && (selectedOrg.licenseStatus === 'EXPIRED' || selectedOrg.licenseStatus === 'SUSPENDED') && (
+                  <div className="mt-2.5 p-2.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-[11px] flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>This plant's license is <strong>{selectedOrg.licenseStatus}</strong>. Login is blocked until renewed via SuperAdmin.</span>
+                  </div>
+                )}
               </div>
             )}
 
