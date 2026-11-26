@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Organization } from '../types';
@@ -23,7 +23,11 @@ import {
   Check,
   Mail,
   ExternalLink,
-  Trash2
+  Trash2,
+  Eye,
+  EyeOff,
+  Send,
+  Sliders
 } from 'lucide-react';
 
 export const SuperAdminPage: React.FC = () => {
@@ -73,6 +77,98 @@ export const SuperAdminPage: React.FC = () => {
     };
   } | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Mail Settings Modal State
+  const [mailModalOpen, setMailModalOpen] = useState(false);
+  const [mailSettingsLoading, setMailSettingsLoading] = useState(false);
+  const [mailSaving, setMailSaving] = useState(false);
+  const [mailHost, setMailHost] = useState('smtp.gmail.com');
+  const [mailPort, setMailPort] = useState(465);
+  const [mailSecure, setMailSecure] = useState<'ssl' | 'tls'>('ssl');
+  const [mailUser, setMailUser] = useState('');
+  const [mailPass, setMailPass] = useState('');
+  const [mailFromName, setMailFromName] = useState('PharmLabel Pro Cloud');
+  const [mailFromEmail, setMailFromEmail] = useState('');
+  const [testRecipient, setTestRecipient] = useState('priyanshupatel773@gmail.com');
+  const [mailConfigured, setMailConfigured] = useState(false);
+  const [mailStatusMsg, setMailStatusMsg] = useState<{ type: 'success' | 'error'; text: string; log?: string } | null>(null);
+  const [recentEmailLogs, setRecentEmailLogs] = useState<any[]>([]);
+  const [activeMailTab, setActiveMailTab] = useState<'config' | 'logs'>('config');
+  const [showPassword, setShowPassword] = useState(false);
+  const [logCopiedIndex, setLogCopiedIndex] = useState<number | null>(null);
+
+  const fetchMailSettings = async () => {
+    try {
+      setMailSettingsLoading(true);
+      const res = await fetch('/api/superadmin/mail_settings.php');
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const s = data.data.settings;
+        setMailHost(s.host || 'smtp.gmail.com');
+        setMailPort(s.port || 465);
+        setMailSecure(s.secure || 'ssl');
+        setMailUser(s.user || '');
+        setMailFromName(s.from_name || 'PharmLabel Pro Cloud');
+        setMailFromEmail(s.from_email || '');
+        setMailConfigured(s.is_configured);
+        setRecentEmailLogs(data.data.recent_logs || []);
+      }
+    } catch (e) {
+      console.error('Failed to load mail settings', e);
+    } finally {
+      setMailSettingsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMailSettings();
+  }, []);
+
+  const handleSaveAndTestMail = async (runTest: boolean) => {
+    setMailSaving(true);
+    setMailStatusMsg(null);
+    try {
+      const payload: any = {
+        host: mailHost,
+        port: Number(mailPort),
+        secure: mailSecure,
+        user: mailUser,
+        pass: mailPass,
+        from_email: mailFromEmail || mailUser,
+        from_name: mailFromName
+      };
+      if (runTest) {
+        payload.test_recipient = testRecipient;
+      }
+      const res = await fetch('/api/superadmin/mail_settings.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setMailConfigured(true);
+        setMailStatusMsg({
+          type: 'success',
+          text: data.message || 'SMTP Settings saved successfully!'
+        });
+        await fetchMailSettings();
+      } else {
+        setMailStatusMsg({
+          type: 'error',
+          text: data.error || 'Failed to connect to SMTP server.',
+          log: data.details?.smtp_log
+        });
+      }
+    } catch (e: any) {
+      setMailStatusMsg({
+        type: 'error',
+        text: e.message || 'Network error communicating with backend.'
+      });
+    } finally {
+      setMailSaving(false);
+    }
+  };
 
   // Filtered organizations
   const filteredOrgs = organizations.filter(org => {
@@ -226,6 +322,24 @@ export const SuperAdminPage: React.FC = () => {
           >
             <Plus className="w-4 h-4 text-purple-700" />
             Onboard New Pharma Company
+          </button>
+
+          <button
+            onClick={() => {
+              setMailStatusMsg(null);
+              setMailModalOpen(true);
+              fetchMailSettings();
+            }}
+            className="px-3.5 py-2.5 bg-purple-900/80 hover:bg-purple-800 border border-purple-500/50 text-white rounded-xl font-bold text-xs flex items-center gap-2 transition active:scale-95 shadow-md"
+            title="Configure SMTP Server and Test Email Dispatch"
+          >
+            <Mail className="w-4 h-4 text-purple-300" />
+            <span>Email & SMTP Settings</span>
+            {mailConfigured ? (
+              <span className="w-2 h-2 rounded-full bg-emerald-400" title="SMTP Active" />
+            ) : (
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" title="SMTP Setup Required" />
+            )}
           </button>
 
           <button
@@ -806,6 +920,380 @@ export const SuperAdminPage: React.FC = () => {
                   </>
                 )}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Email & SMTP Configuration Modal */}
+      {mailModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-2xl w-full p-6 text-slate-900 relative max-h-[90vh] flex flex-col">
+            <button
+              onClick={() => setMailModalOpen(false)}
+              className="absolute top-5 right-5 text-slate-400 hover:text-slate-700 p-1 rounded-lg"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Modal Header */}
+            <div className="flex items-center gap-3 pb-4 border-b border-slate-100 shrink-0">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md">
+                <Mail className="w-6 h-6" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-extrabold text-base text-slate-900">
+                    SMTP & Email Dispatcher Engine
+                  </h3>
+                  {mailConfigured ? (
+                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-300">
+                      ✓ LIVE DISPATCH READY
+                    </span>
+                  ) : (
+                    <span className="text-[10px] bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded-full border border-amber-300">
+                      ⚠ CREDENTIALS REQUIRED
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Configure authenticated SMTP to deliver client onboarding credentials straight into inboxes.
+                </p>
+              </div>
+            </div>
+
+            {/* Tabs Header */}
+            <div className="flex items-center gap-2 border-b border-slate-100 pt-3 pb-2 text-xs font-bold shrink-0">
+              <button
+                type="button"
+                onClick={() => setActiveMailTab('config')}
+                className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition ${
+                  activeMailTab === 'config'
+                    ? 'bg-purple-100 text-purple-800 font-bold'
+                    : 'text-slate-500 hover:bg-slate-100'
+                }`}
+              >
+                <Sliders className="w-3.5 h-3.5" />
+                <span>SMTP Configuration</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveMailTab('logs');
+                  fetchMailSettings();
+                }}
+                className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition ${
+                  activeMailTab === 'logs'
+                    ? 'bg-purple-100 text-purple-800 font-bold'
+                    : 'text-slate-500 hover:bg-slate-100'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>Sent Credentials Log</span>
+                <span className="bg-slate-200 text-slate-700 text-[10px] px-1.5 py-0.2 rounded-full">
+                  {recentEmailLogs.length}
+                </span>
+              </button>
+            </div>
+
+            {/* Modal Scrollable Body */}
+            <div className="overflow-y-auto flex-1 py-4 space-y-4 pr-1">
+              {activeMailTab === 'config' ? (
+                <>
+                  {/* Status / Alert Banner */}
+                  {mailStatusMsg && (
+                    <div
+                      className={`p-3.5 rounded-2xl border text-xs ${
+                        mailStatusMsg.type === 'success'
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                          : 'bg-rose-50 border-rose-200 text-rose-900'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        {mailStatusMsg.type === 'success' ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                        ) : (
+                          <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                        )}
+                        <div className="space-y-1">
+                          <p className="font-bold">{mailStatusMsg.text}</p>
+                          {mailStatusMsg.log && (
+                            <pre className="text-[10px] font-mono bg-white/80 p-2 rounded border border-rose-200 overflow-x-auto whitespace-pre-wrap max-h-32">
+                              {mailStatusMsg.log}
+                            </pre>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Provider Presets */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                      Quick Provider Presets
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMailHost('smtp.gmail.com');
+                          setMailPort(465);
+                          setMailSecure('ssl');
+                        }}
+                        className={`p-2.5 rounded-xl border text-xs text-left transition ${
+                          mailHost === 'smtp.gmail.com'
+                            ? 'border-purple-500 bg-purple-50/50 text-purple-900 font-bold'
+                            : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        <div className="font-bold">Google Mail (Gmail)</div>
+                        <div className="text-[10px] text-slate-500">smtp.gmail.com:465 SSL</div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMailHost('smtp.hostinger.com');
+                          setMailPort(465);
+                          setMailSecure('ssl');
+                        }}
+                        className={`p-2.5 rounded-xl border text-xs text-left transition ${
+                          mailHost === 'smtp.hostinger.com'
+                            ? 'border-purple-500 bg-purple-50/50 text-purple-900 font-bold'
+                            : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        <div className="font-bold">Hostinger Webmail</div>
+                        <div className="text-[10px] text-slate-500">smtp.hostinger.com:465 SSL</div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Gmail Help Card */}
+                  {mailHost.includes('gmail') && (
+                    <div className="bg-blue-50/70 border border-blue-200 rounded-2xl p-3 text-xs text-blue-950 space-y-1.5">
+                      <div className="font-bold flex items-center gap-1.5 text-blue-900">
+                        <span>How to get your Gmail Sender Password in 1 minute:</span>
+                      </div>
+                      <ol className="list-decimal list-inside space-y-1 text-[11px] text-blue-900 leading-relaxed pl-1">
+                        <li>Ensure <strong>2-Step Verification</strong> is enabled on your Google Account.</li>
+                        <li>
+                          Open{' '}
+                          <a
+                            href="https://myaccount.google.com/apppasswords"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-bold text-blue-700 underline inline-flex items-center gap-0.5"
+                          >
+                            <span>Google App Passwords</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </li>
+                        <li>Create an App Password (name it e.g. <code className="bg-blue-100 px-1 py-0.5 rounded">PharmLabel</code>).</li>
+                        <li>Paste the generated <strong>16-character code</strong> into the App Password field below.</li>
+                      </ol>
+                    </div>
+                  )}
+
+                  {/* Form Grid */}
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        SMTP Host *
+                      </label>
+                      <input
+                        type="text"
+                        value={mailHost}
+                        onChange={e => setMailHost(e.target.value)}
+                        placeholder="smtp.gmail.com"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl font-mono text-xs focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          Port *
+                        </label>
+                        <input
+                          type="number"
+                          value={mailPort}
+                          onChange={e => setMailPort(Number(e.target.value))}
+                          placeholder="465"
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl font-mono text-xs focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          Security
+                        </label>
+                        <select
+                          value={mailSecure}
+                          onChange={e => setMailSecure(e.target.value as 'ssl' | 'tls')}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                        >
+                          <option value="ssl">SSL (465)</option>
+                          <option value="tls">STARTTLS (587)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Sender Email (Username) *
+                      </label>
+                      <input
+                        type="email"
+                        value={mailUser}
+                        onChange={e => setMailUser(e.target.value)}
+                        placeholder="e.g. sender@gmail.com"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        App Password / Secret *
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          value={mailPass}
+                          onChange={e => setMailPass(e.target.value)}
+                          placeholder="16-character App Password"
+                          className="w-full pl-3 pr-8 py-2 border border-slate-200 rounded-xl font-mono text-xs focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                        >
+                          {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Sender Display Name
+                      </label>
+                      <input
+                        type="text"
+                        value={mailFromName}
+                        onChange={e => setMailFromName(e.target.value)}
+                        placeholder="PharmLabel Pro Cloud"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Send Verification Email To
+                      </label>
+                      <input
+                        type="email"
+                        value={testRecipient}
+                        onChange={e => setTestRecipient(e.target.value)}
+                        placeholder="priyanshupatel773@gmail.com"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono"
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                /* Recent Dispatched Emails Log */
+                <div className="space-y-2.5">
+                  <p className="text-xs text-slate-500">
+                    Audit log of credentials generated and dispatched by the system:
+                  </p>
+                  {recentEmailLogs.length === 0 ? (
+                    <div className="text-center py-8 text-slate-400 text-xs">
+                      No dispatched emails logged yet.
+                    </div>
+                  ) : (
+                    recentEmailLogs.map((log, idx) => (
+                      <div
+                        key={idx}
+                        className="p-3 bg-slate-50 border border-slate-200/90 rounded-2xl text-xs space-y-1.5"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-slate-900">{log.recipient}</span>
+                          <span className="text-[10px] text-slate-500 font-mono">{log.timestamp}</span>
+                        </div>
+                        <div className="text-[11px] text-slate-600">{log.subject}</div>
+                        {log.temp_pass && (
+                          <div className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded-lg border border-slate-200 mt-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-slate-500 text-[10px] font-bold">Temporary Password:</span>
+                              <span className="font-mono font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded text-xs">
+                                {log.temp_pass}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(log.temp_pass);
+                                setLogCopiedIndex(idx);
+                                setTimeout(() => setLogCopiedIndex(null), 2000);
+                              }}
+                              className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[10px] font-bold flex items-center gap-1 transition"
+                            >
+                              {logCopiedIndex === idx ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                              <span>{logCopiedIndex === idx ? 'Copied' : 'Copy'}</span>
+                            </button>
+                          </div>
+                        )}
+                        <div className="text-[10px] text-slate-500 italic mt-0.5">
+                          Status: {log.dispatch || log.status}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => setMailModalOpen(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
+              >
+                Close
+              </button>
+
+              {activeMailTab === 'config' && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={mailSaving}
+                    onClick={() => handleSaveAndTestMail(false)}
+                    className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold rounded-xl transition disabled:opacity-50"
+                  >
+                    Save Settings Only
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={mailSaving || !mailUser || !mailPass}
+                    onClick={() => handleSaveAndTestMail(true)}
+                    className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-md transition disabled:opacity-50 flex items-center gap-1.5 active:scale-95"
+                  >
+                    {mailSaving ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Verifying & Sending Test...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-3.5 h-3.5" />
+                        <span>Save & Send Test Email</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
