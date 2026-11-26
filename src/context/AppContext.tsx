@@ -113,7 +113,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [users] = useState<User[]>(INITIAL_USERS);
   const [currentUser, setCurrentUser] = useState<User>(() => {
     const saved = localStorage.getItem('pharmalabel_user');
-    return saved ? JSON.parse(saved) : INITIAL_USERS[2]; // Default to Supervisor for rich overview
+    if (saved) {
+      try {
+        const u = JSON.parse(saved);
+        if (u.role === 'SuperAdmin') {
+          u.mustChangePassword = false;
+        }
+        return u;
+      } catch {}
+    }
+    return INITIAL_USERS[2]; // Default to Supervisor for rich overview
   });
 
   const [companySettings, setCompanySettings] = useState<CompanySettings>(() => {
@@ -292,7 +301,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const login = (user: User, org?: Organization) => {
-    setCurrentUser(user);
+    const sanitizedUser: User = {
+      ...user,
+      mustChangePassword: user.role === 'SuperAdmin' ? false : !!user.mustChangePassword
+    };
+    setCurrentUser(sanitizedUser);
     if (org) {
       setCurrentOrganization(org);
     } else if (user.role === 'SuperAdmin') {

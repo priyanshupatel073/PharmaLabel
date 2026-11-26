@@ -301,7 +301,11 @@ try {
         'outcome'   => 'SUCCESS'
     ], $user['organization_id'], $user);
 
-    // 8. Return Success Payload to Frontend
+    // 8. Return Success Payload to Frontend (Only newly onboarded client plant users require first-login password change)
+    $isNewlyOnboardedClient = ($user['role'] !== 'SuperAdmin')
+        && !empty($user['organization_id'])
+        && empty($user['password_changed_at']);
+
     sendSuccess([
         'token'        => $token,
         'user'         => [
@@ -311,7 +315,7 @@ try {
             'role'                 => $user['role'],
             'department'           => $user['department'],
             'organization_id'      => $user['organization_id'],
-            'must_change_password' => empty($user['password_changed_at'])
+            'must_change_password' => $isNewlyOnboardedClient
         ],
         'organization' => $tenantOrg
     ], 'Authentication successful. Session initialized.');

@@ -16,7 +16,8 @@ export const MainLayout: React.FC = () => {
     return <Navigate to="/login" replace />;
   }
 
-  const isMandatoryPasswordChange = !!currentUser.mustChangePassword;
+  // Mandatory password change strictly applies to newly onboarded client plant accounts, NEVER SuperAdmin
+  const isMandatoryPasswordChange = currentUser.role !== 'SuperAdmin' && !!currentUser.mustChangePassword;
 
   return (
     <div className="min-h-screen bg-canvas flex font-sans">

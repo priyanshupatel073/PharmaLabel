@@ -241,7 +241,7 @@ export const LoginPage: React.FC = () => {
           permissions: matchedMock ? matchedMock.permissions : ['print_labels', 'view_audit'],
           status: 'ACTIVE',
           lastLogin: res.timestamp,
-          mustChangePassword: !!dbUser.must_change_password
+          mustChangePassword: dbUser.role !== 'SuperAdmin' && !!dbUser.must_change_password
         };
 
         const targetOrg = organizations.find(o => o.id === (res.data.organization?.id || selectedOrgId)) || organizations[0];
