@@ -7,13 +7,14 @@ import {
   KeyRound, Menu, CheckCircle2, AlertTriangle,
   FileCheck, Layers, ArrowRight, ShieldCheck,
   X, Check, Package, Barcode, FileCode, History,
-  LogOut, Building2, Clock
+  LogOut, Building2, Clock, Lock
 } from 'lucide-react';
 import { Role } from '../types';
 import { INITIAL_USERS } from '../utils/mockData';
 
 interface TopbarProps {
   onOpenLoginModal: () => void;
+  onOpenChangePasswordModal?: () => void;
 }
 
 const ROLE_COLORS: Record<Role, string> = {
@@ -30,7 +31,7 @@ const ROLE_DOT: Record<Role, string> = {
   Operator:   'bg-amber-500',
 };
 
-export const Topbar: React.FC<TopbarProps> = ({ onOpenLoginModal }) => {
+export const Topbar: React.FC<TopbarProps> = ({ onOpenLoginModal, onOpenChangePasswordModal }) => {
   const {
     currentUser, switchRole, lockoutRemaining, resetLockout,
     auditLogs, products, templates, batches, setActiveTab,
@@ -554,6 +555,19 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenLoginModal }) => {
               </div>
 
               <div className="p-2 space-y-1">
+                {onOpenChangePasswordModal && (
+                  <button
+                    onClick={() => {
+                      onOpenChangePasswordModal();
+                      setUserMenuOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-slate-700 hover:bg-slate-100 transition font-medium"
+                  >
+                    <Lock className="w-4 h-4 text-slate-500" />
+                    <span>Change Password (21 CFR Part 11)</span>
+                  </button>
+                )}
+
                 <button
                   onClick={() => {
                     navigate('/login');

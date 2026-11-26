@@ -25,6 +25,7 @@ export interface User {
   permissions: Permission[];
   status: 'ACTIVE' | 'INACTIVE' | 'LOCKED';
   lastLogin?: string;
+  mustChangePassword?: boolean;
 }
 
 export interface CompanySettings {

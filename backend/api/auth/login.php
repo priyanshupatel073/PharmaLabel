@@ -305,12 +305,13 @@ try {
     sendSuccess([
         'token'        => $token,
         'user'         => [
-            'id'              => $user['id'],
-            'name'            => $user['name'],
-            'email'           => $user['email'],
-            'role'            => $user['role'],
-            'department'      => $user['department'],
-            'organization_id' => $user['organization_id']
+            'id'                   => $user['id'],
+            'name'                 => $user['name'],
+            'email'                => $user['email'],
+            'role'                 => $user['role'],
+            'department'           => $user['department'],
+            'organization_id'      => $user['organization_id'],
+            'must_change_password' => empty($user['password_changed_at'])
         ],
         'organization' => $tenantOrg
     ], 'Authentication successful. Session initialized.');

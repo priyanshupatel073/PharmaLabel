@@ -240,7 +240,8 @@ export const LoginPage: React.FC = () => {
           department: dbUser.department,
           permissions: matchedMock ? matchedMock.permissions : ['print_labels', 'view_audit'],
           status: 'ACTIVE',
-          lastLogin: res.timestamp
+          lastLogin: res.timestamp,
+          mustChangePassword: !!dbUser.must_change_password
         };
 
         const targetOrg = organizations.find(o => o.id === (res.data.organization?.id || selectedOrgId)) || organizations[0];
