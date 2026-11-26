@@ -49,6 +49,7 @@ interface AppContextType {
   logout: () => void;
   sessionRemaining: number;
   onboardOrganization: (org: Omit<Organization, 'id' | 'createdAt' | 'totalDrumsPrinted'>) => void;
+  deleteOrganization: (orgId: string) => Promise<boolean>;
   updateOrganizationLicense: (orgId: string, status: Organization['licenseStatus'], validUntil?: string) => void;
   switchRole: (role: Role) => void;
   failedLoginAttempts: number;
@@ -353,6 +354,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       newValue: `Onboarded ${newOrg.name} (${newOrg.id}) with GS1 Prefix ${newOrg.gs1Prefix}`,
       reason: 'New client enterprise cloud license activated'
     });
+  };
+
+  const deleteOrganization = async (orgId: string): Promise<boolean> => {
+    try {
+      const response = await fetch('/api/superadmin/organizations.php', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ organization_id: orgId })
+      });
+      const res = await response.json();
+      if (response.ok && res.success) {
+        setOrganizations(prev => {
+          const updated = prev.filter(o => o.id !== orgId);
+          localStorage.setItem('pharmalabel_orgs', JSON.stringify(updated));
+          return updated;
+        });
+
+        if (currentOrganization.id === orgId) {
+          const remaining = organizations.filter(o => o.id !== orgId);
+          if (remaining.length > 0) {
+            setCurrentOrganization(remaining[0]);
+            localStorage.setItem('pharmalabel_current_org', JSON.stringify(remaining[0]));
+          }
+        }
+
+        logAudit('TENANT_DELETED', 'SuperAdmin Licensing', {
+          oldValue: `Org ID: ${orgId}`,
+          newValue: 'DECOMMISSIONED_AND_PERMANENTLY_DELETED',
+          reason: 'Permanent tenant deletion authorized by SuperAdmin'
+        });
+
+        return true;
+      }
+      return false;
+    } catch {
+      // Local fallback
+      setOrganizations(prev => {
+        const updated = prev.filter(o => o.id !== orgId);
+        localStorage.setItem('pharmalabel_orgs', JSON.stringify(updated));
+        return updated;
+      });
+      return true;
+    }
   };
 
   const updateOrganizationLicense = (orgId: string, status: Organization['licenseStatus'], validUntil?: string) => {
@@ -1151,6 +1197,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         logout,
         sessionRemaining,
         onboardOrganization,
+        deleteOrganization,
         updateOrganizationLicense,
         switchRole,
         failedLoginAttempts,

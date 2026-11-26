@@ -277,6 +277,69 @@ try {
         ], "Organization '$name' successfully onboarded and credentials dispatched to $contactEmail.", 201);
     }
 
+    // ------------------------------------------------------------------------
+    // 3. DELETE: Permanently Decommission & Delete Client Organization Tenant
+    // ------------------------------------------------------------------------
+    if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+        $raw = file_get_contents('php://input');
+        $input = json_decode($raw, true) ?? [];
+        $orgId = trim((string)($input['organization_id'] ?? ($_GET['organization_id'] ?? '')));
+
+        if (empty($orgId)) {
+            sendError('Organization ID is required for deletion.', 400);
+        }
+
+        if ($orgId === 'PLATFORM-CAMEL') {
+            sendError('Platform Owner organization (PLATFORM-CAMEL) cannot be deleted.', 403);
+        }
+
+        // Fetch organization details for audit logging
+        $checkStmt = $pdo->prepare("SELECT * FROM `organizations` WHERE id = :id LIMIT 1");
+        $checkStmt->execute([':id' => $orgId]);
+        $org = $checkStmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$org) {
+            sendError("Organization '$orgId' not found in database.", 404);
+        }
+
+        // Begin transaction
+        $pdo->beginTransaction();
+
+        try {
+            // Explicitly delete child records across all dependent tables
+            $pdo->prepare("DELETE FROM `label_snapshots` WHERE organization_id = :id")->execute([':id' => $orgId]);
+            $pdo->prepare("DELETE FROM `drums` WHERE organization_id = :id")->execute([':id' => $orgId]);
+            $pdo->prepare("DELETE FROM `batches` WHERE organization_id = :id")->execute([':id' => $orgId]);
+            $pdo->prepare("DELETE FROM `templates` WHERE organization_id = :id")->execute([':id' => $orgId]);
+            $pdo->prepare("DELETE FROM `products` WHERE organization_id = :id")->execute([':id' => $orgId]);
+            $pdo->prepare("DELETE FROM `company_settings` WHERE organization_id = :id")->execute([':id' => $orgId]);
+            $pdo->prepare("DELETE FROM `users` WHERE organization_id = :id")->execute([':id' => $orgId]);
+
+            // Delete organization record
+            $delStmt = $pdo->prepare("DELETE FROM `organizations` WHERE id = :id");
+            $delStmt->execute([':id' => $orgId]);
+
+            // Log 21 CFR Part 11 Immutable Audit Trail
+            logAuditTrail($pdo, 'TENANT_DELETED', 'SuperAdmin Licensing', [
+                'old_value' => "{$org['name']} ({$org['id']}) [GS1: {$org['gs1_company_prefix']}]",
+                'new_value' => 'DECOMMISSIONED_AND_PERMANENTLY_DELETED',
+                'reason'    => "Enterprise client organization permanently deleted by SuperAdmin.",
+                'outcome'   => 'SUCCESS'
+            ], null);
+
+            $pdo->commit();
+
+            sendSuccess([
+                'deleted_organization_id' => $orgId,
+                'deleted_organization_name' => $org['name']
+            ], "Organization '{$org['name']}' ({$orgId}) has been permanently deleted from database.");
+
+        } catch (Exception $txException) {
+            $pdo->rollBack();
+            sendError('Failed to delete organization: ' . $txException->getMessage(), 500);
+        }
+    }
+
     sendError('Method not allowed.', 405);
 
 } catch (PDOException $e) {

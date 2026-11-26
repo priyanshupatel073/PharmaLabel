@@ -86,4 +86,17 @@ if (file_exists($logPath)) {
     echo "ERROR: sent_emails.log file not found!\n";
 }
 
-echo "\nAll SuperAdmin Onboarding & Email Dispatch tests passed!\n";
+echo "\n=== 6. Test DELETE Organization (Permanent Decommissioning) ===\n";
+$delCh = curl_init('http://127.0.0.1:8000/api/superadmin/organizations.php');
+curl_setopt($delCh, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($delCh, CURLOPT_CUSTOMREQUEST, 'DELETE');
+curl_setopt($delCh, CURLOPT_POSTFIELDS, json_encode(['organization_id' => $newOrg['id']]));
+curl_setopt($delCh, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+$delOutput = curl_exec($delCh);
+$delCode = curl_getinfo($delCh, CURLINFO_HTTP_CODE);
+curl_close($delCh);
+$delData = json_decode((string)$delOutput, true);
+echo "DELETE HTTP $delCode: " . ($delData['message'] ?? '') . "\n";
+assert($delCode === 200);
+
+echo "\nAll SuperAdmin Onboarding, Email Dispatch & Permanent Deletion tests passed!\n";
