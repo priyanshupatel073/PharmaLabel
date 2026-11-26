@@ -91,6 +91,60 @@ export const INITIAL_USERS: User[] = [
     permissions: ['print_labels', 'create_batch'],
     status: 'ACTIVE',
     lastLogin: '2026-11-23 10:12:05 IST'
+  },
+  {
+    id: 'usr_sun_admin',
+    name: 'Rajesh Patel',
+    email: 'admin@sunpharma.com',
+    role: 'Admin',
+    department: 'Sun Pharma QA & IT Systems',
+    permissions: [
+      'print_labels', 'reprint_labels', 'create_batch', 'edit_batch',
+      'edit_products', 'edit_template', 'manage_users', 'view_audit',
+      'backup_archive', 'edit_company', 'printer_settings', 'manage_logo'
+    ],
+    status: 'ACTIVE',
+    lastLogin: '2026-11-24 11:00:00 IST'
+  },
+  {
+    id: 'usr_sun_qa',
+    name: 'Meera Shah',
+    email: 'qa.halol@sunpharma.com',
+    role: 'Supervisor',
+    department: 'Sun Pharma Halol QA',
+    permissions: [
+      'print_labels', 'reprint_labels', 'edit_drum_weight', 'edit_products',
+      'edit_template', 'view_audit'
+    ],
+    status: 'ACTIVE',
+    lastLogin: '2026-11-24 11:30:00 IST'
+  },
+  {
+    id: 'usr_cipla_admin',
+    name: 'Sunil Deshmukh',
+    email: 'admin@cipla.com',
+    role: 'Admin',
+    department: 'Cipla Kurkumbh Serialization',
+    permissions: [
+      'print_labels', 'reprint_labels', 'create_batch', 'edit_batch',
+      'edit_products', 'edit_template', 'manage_users', 'view_audit',
+      'backup_archive', 'edit_company', 'printer_settings', 'manage_logo'
+    ],
+    status: 'ACTIVE',
+    lastLogin: '2026-11-24 14:00:00 IST'
+  },
+  {
+    id: 'usr_cipla_reg',
+    name: 'Pooja Kulkarni',
+    email: 'it.regulatory@cipla.com',
+    role: 'Supervisor',
+    department: 'Cipla Regulatory Compliance',
+    permissions: [
+      'print_labels', 'reprint_labels', 'edit_drum_weight', 'edit_products',
+      'edit_template', 'view_audit'
+    ],
+    status: 'ACTIVE',
+    lastLogin: '2026-11-24 14:30:00 IST'
   }
 ];
 

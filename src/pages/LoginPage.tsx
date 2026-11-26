@@ -26,11 +26,12 @@ export const LoginPage: React.FC = () => {
   const {
     login,
     organizations,
-    failedLoginAttempts,
-    lockoutRemaining,
-    recordFailedLogin,
-    triggerLockout,
-    resetLockout
+    getLockoutRemainingForEmail,
+    getFailedAttemptsForEmail,
+    recordFailedLoginForEmail,
+    triggerLockoutForEmail,
+    clearLockoutForEmail,
+    resetAllLockouts
   } = useApp();
 
   const navigate = useNavigate();
@@ -43,42 +44,95 @@ export const LoginPage: React.FC = () => {
   const [agreeTerms, setAgreeTerms] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [activeLockout, setActiveLockout] = useState<number>(0);
 
-  // Sync lockout & attempts status on component mount / tab switch
+  // Helper to get default email for an org
+  const getDefaultEmailForOrg = (orgId: string): string => {
+    if (orgId === 'ORG-SUNPHARMA') return 'admin@sunpharma.com';
+    if (orgId === 'ORG-CIPLA') return 'admin@cipla.com';
+    return 'supervisor@apexpharma.com';
+  };
+
+  // Sync lockout & attempts status on email, tab, or company change
   useEffect(() => {
-    // 1. Instant check from localStorage
-    const savedUntil = localStorage.getItem('pharmalabel_lockout_until');
-    if (savedUntil) {
-      const diff = Math.floor((parseInt(savedUntil, 10) - Date.now()) / 1000);
-      if (diff > 0) {
-        triggerLockout(diff);
-        setErrorMessage(`Account is locked due to 5 consecutive failed login attempts (${diff}s remaining).`);
-        return;
-      } else {
-        resetLockout();
-      }
+    if (!email) {
+      setActiveLockout(0);
+      setErrorMessage('');
+      return;
     }
 
-    const savedAttempts = parseInt(localStorage.getItem('pharmalabel_failed_attempts') || '0', 10);
-    if (savedAttempts > 0 && savedAttempts < 5) {
-      const left = 5 - savedAttempts;
-      setErrorMessage(`Invalid credentials. ${left} attempt${left === 1 ? '' : 's'} remaining before 15-minute 21 CFR Part 11 account lockout.`);
-    }
-  }, [activeTab]);
+    const emailKey = email.trim().toLowerCase();
 
-  const handleEmailBlur = () => {
-    if (email && email.includes('@')) {
-      fetch(`/api/auth/login.php?email=${encodeURIComponent(email.trim())}`)
+    // 1. Instant check from local per-email lockout map
+    const localRemaining = getLockoutRemainingForEmail(emailKey);
+    if (localRemaining > 0) {
+      setActiveLockout(localRemaining);
+      setErrorMessage(`Account (${email}) is locked due to 5 consecutive failed login attempts (${localRemaining}s remaining).`);
+      return;
+    } else {
+      setActiveLockout(0);
+      setErrorMessage('');
+    }
+
+    // 2. Check against backend database for this specific email
+    if (emailKey.includes('@')) {
+      fetch(`/api/auth/login.php?email=${encodeURIComponent(emailKey)}`)
         .then(res => res.json())
         .then(json => {
           if (json?.data?.locked) {
             const sec = json.data.remaining_seconds || 900;
-            triggerLockout(sec);
-            setErrorMessage(`Account is locked in database (21 CFR Part 11). Please wait (${sec}s remaining).`);
+            triggerLockoutForEmail(emailKey, sec);
+            setActiveLockout(sec);
+            setErrorMessage(`Account (${email}) is locked in database (21 CFR Part 11). Please wait (${sec}s remaining).`);
+          } else {
+            setActiveLockout(0);
           }
         })
         .catch(() => {});
     }
+  }, [email, activeTab, selectedOrgId]);
+
+  // Countdown timer for activeLockout
+  useEffect(() => {
+    if (activeLockout <= 0) return;
+    const interval = setInterval(() => {
+      setActiveLockout(prev => {
+        const next = Math.max(0, prev - 1);
+        if (next === 0) {
+          clearLockoutForEmail(email);
+          setErrorMessage('');
+        }
+        return next;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [activeLockout, email]);
+
+  const handleEmailBlur = () => {
+    if (email && email.includes('@')) {
+      const emailKey = email.trim().toLowerCase();
+      fetch(`/api/auth/login.php?email=${encodeURIComponent(emailKey)}`)
+        .then(res => res.json())
+        .then(json => {
+          if (json?.data?.locked) {
+            const sec = json.data.remaining_seconds || 900;
+            triggerLockoutForEmail(emailKey, sec);
+            setActiveLockout(sec);
+            setErrorMessage(`Account (${email}) is locked in database (21 CFR Part 11). Please wait (${sec}s remaining).`);
+          }
+        })
+        .catch(() => {});
+    }
+  };
+
+  // Handle Organization Change
+  const handleOrgChange = (orgId: string) => {
+    setSelectedOrgId(orgId);
+    setErrorMessage('');
+    const newEmail = getDefaultEmailForOrg(orgId);
+    setEmail(newEmail);
+    setPassword('Password@123');
+    setActiveLockout(getLockoutRemainingForEmail(newEmail));
   };
 
   // Handle Tab Switch
@@ -86,19 +140,23 @@ export const LoginPage: React.FC = () => {
     setActiveTab(tab);
     setErrorMessage('');
     if (tab === 'superadmin') {
-      setEmail('superadmin@camelcomm.in');
+      const superEmail = 'superadmin@camelcomm.in';
+      setEmail(superEmail);
       setPassword('Password@123');
-    } else if (tab === 'company') {
-      setEmail('supervisor@apexpharma.com');
+      setActiveLockout(getLockoutRemainingForEmail(superEmail));
+    } else {
+      const companyEmail = getDefaultEmailForOrg(selectedOrgId);
+      setEmail(companyEmail);
       setPassword('Password@123');
+      setActiveLockout(getLockoutRemainingForEmail(companyEmail));
     }
   };
 
   // Perform Real Backend Authenticated Login
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (lockoutRemaining > 0) {
-      setErrorMessage(`System lockout active. Please wait ${Math.floor(lockoutRemaining / 60)}m ${lockoutRemaining % 60}s.`);
+    if (activeLockout > 0) {
+      setErrorMessage(`System lockout active for ${email}. Please wait ${Math.floor(activeLockout / 60)}m ${activeLockout % 60}s.`);
       return;
     }
 
@@ -126,8 +184,10 @@ export const LoginPage: React.FC = () => {
       const res = await response.json();
 
       if (response.ok && res.success) {
-        // Clear client and server lockout states
-        resetLockout();
+        // Clear lockout for this specific email
+        clearLockoutForEmail(email);
+        setActiveLockout(0);
+
         if (res.data?.token) {
           localStorage.setItem('pharmalabel_token', res.data.token);
         }
@@ -160,14 +220,16 @@ export const LoginPage: React.FC = () => {
       } else {
         // Handle failed login
         if (response.status === 403 && (res.errors?.locked || res.message?.includes('locked') || res.message?.includes('consecutive'))) {
-          // Lockout triggered in database!
+          // Lockout triggered in database for this email!
           const remainingSec = res.errors?.remaining_seconds || 900;
-          triggerLockout(remainingSec);
+          triggerLockoutForEmail(email, remainingSec);
+          setActiveLockout(remainingSec);
           setErrorMessage(res.message);
         } else {
-          // Increment failed attempt counter (counts down for ALL credentials, including unregistered test emails!)
-          const nextAttempts = recordFailedLogin();
+          // Increment attempt for THIS specific email
+          const nextAttempts = recordFailedLoginForEmail(email);
           if (nextAttempts >= 5) {
+            setActiveLockout(900);
             setErrorMessage('Account locked out for 15 minutes due to 5 consecutive failed attempts.');
           } else {
             const left = 5 - nextAttempts;
@@ -184,13 +246,14 @@ export const LoginPage: React.FC = () => {
 
   // 1-Click Fast Demo Login Handler
   const handleQuickDemoLogin = async (role: Role, orgId?: string) => {
-    resetLockout();
     setErrorMessage('');
     const targetEmail = role === 'SuperAdmin' ? 'superadmin@camelcomm.in' : 
-      role === 'Admin' ? 'admin@apexpharma.com' :
-      role === 'Supervisor' ? 'supervisor@apexpharma.com' : 'operator@apexpharma.com';
+      role === 'Admin' ? (orgId === 'ORG-SUNPHARMA' ? 'admin@sunpharma.com' : orgId === 'ORG-CIPLA' ? 'admin@cipla.com' : 'admin@apexpharma.com') :
+      role === 'Supervisor' ? (orgId === 'ORG-SUNPHARMA' ? 'qa.halol@sunpharma.com' : orgId === 'ORG-CIPLA' ? 'it.regulatory@cipla.com' : 'supervisor@apexpharma.com') : 'operator@apexpharma.com';
 
-    // Clear backend lock if previously locked
+    clearLockoutForEmail(targetEmail);
+    setActiveLockout(0);
+
     try {
       await fetch('/api/auth/login.php?action=unlock', {
         method: 'POST',
@@ -204,7 +267,7 @@ export const LoginPage: React.FC = () => {
       login(superUser);
       navigate('/superadmin');
     } else {
-      const targetUser = INITIAL_USERS.find(u => u.role === role)!;
+      const targetUser = INITIAL_USERS.find(u => u.email.toLowerCase() === targetEmail.toLowerCase()) || INITIAL_USERS.find(u => u.role === role)!;
       const targetOrg = organizations.find(o => o.id === (orgId || 'ORG-APEX')) || organizations[0];
       login(targetUser, targetOrg);
       if (role === 'Operator') {
@@ -224,7 +287,8 @@ export const LoginPage: React.FC = () => {
         body: JSON.stringify({ email: email.trim() })
       });
     } catch (e) {}
-    resetLockout();
+    clearLockoutForEmail(email);
+    setActiveLockout(0);
     setErrorMessage('');
   };
 
@@ -311,7 +375,7 @@ export const LoginPage: React.FC = () => {
                   </div>
                   <select
                     value={selectedOrgId}
-                    onChange={(e) => setSelectedOrgId(e.target.value)}
+                    onChange={(e) => handleOrgChange(e.target.value)}
                     className="flex-1 bg-transparent px-3.5 py-2.5 text-xs text-[#0d3b75] font-semibold appearance-none focus:outline-none cursor-pointer"
                   >
                     {organizations.map(org => (
@@ -437,12 +501,12 @@ export const LoginPage: React.FC = () => {
               </div>
             )}
 
-            {/* Lockout Warning */}
-            {lockoutRemaining > 0 && (
+            {/* Lockout Warning (Strictly scoped to current email) */}
+            {activeLockout > 0 && (
               <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-700 text-xs flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   <Lock className="w-4 h-4 text-amber-600" />
-                  <span>Locked: {Math.floor(lockoutRemaining / 60)}m {lockoutRemaining % 60}s</span>
+                  <span>Locked: {Math.floor(activeLockout / 60)}m {activeLockout % 60}s</span>
                 </div>
                 <button
                   type="button"
@@ -458,7 +522,7 @@ export const LoginPage: React.FC = () => {
             {/* Action Button (Vivid Blue to Cyan Gradient Pill from Screenshot) */}
             <button
               type="submit"
-              disabled={isSubmitting || lockoutRemaining > 0}
+              disabled={isSubmitting || activeLockout > 0}
               className="w-full py-3.5 rounded-full text-white font-bold text-sm bg-gradient-to-r from-[#0055ff] via-[#0077ff] to-[#00d4ff] hover:opacity-95 shadow-lg shadow-blue-500/25 transition transform active:scale-[0.99] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed mt-2"
             >
               {isSubmitting ? (

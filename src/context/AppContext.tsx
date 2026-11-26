@@ -56,6 +56,12 @@ interface AppContextType {
   simulateFailedLogin: () => void;
   triggerLockout: (seconds?: number) => void;
   resetLockout: () => void;
+  getLockoutRemainingForEmail: (email: string) => number;
+  getFailedAttemptsForEmail: (email: string) => number;
+  recordFailedLoginForEmail: (email: string) => number;
+  triggerLockoutForEmail: (email: string, seconds?: number) => void;
+  clearLockoutForEmail: (email: string) => void;
+  resetAllLockouts: () => void;
   hasPermission: (permission: string) => boolean;
 
   // Actions
@@ -336,6 +342,95 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  // Per-email multi-tenant lockout maps
+  const getLockoutsMap = (): Record<string, number> => {
+    try {
+      const raw = localStorage.getItem('pharmalabel_lockouts_map');
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  };
+
+  const getAttemptsMap = (): Record<string, number> => {
+    try {
+      const raw = localStorage.getItem('pharmalabel_attempts_map');
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  };
+
+  const getLockoutRemainingForEmail = (targetEmail: string): number => {
+    if (!targetEmail) return 0;
+    const key = targetEmail.trim().toLowerCase();
+    const map = getLockoutsMap();
+    const until = map[key];
+    if (until) {
+      const diff = Math.floor((until - Date.now()) / 1000);
+      if (diff > 0) return diff;
+      delete map[key];
+      localStorage.setItem('pharmalabel_lockouts_map', JSON.stringify(map));
+    }
+    return 0;
+  };
+
+  const getFailedAttemptsForEmail = (targetEmail: string): number => {
+    if (!targetEmail) return 0;
+    const key = targetEmail.trim().toLowerCase();
+    const map = getAttemptsMap();
+    return map[key] || 0;
+  };
+
+  const recordFailedLoginForEmail = (targetEmail: string): number => {
+    if (!targetEmail) return 0;
+    const key = targetEmail.trim().toLowerCase();
+    const attemptsMap = getAttemptsMap();
+    const nextAttempts = (attemptsMap[key] || 0) + 1;
+    attemptsMap[key] = nextAttempts;
+    localStorage.setItem('pharmalabel_attempts_map', JSON.stringify(attemptsMap));
+
+    if (nextAttempts >= 5) {
+      triggerLockoutForEmail(targetEmail, 900);
+      logAudit('BRUTE_FORCE_LOCKOUT_TRIGGERED', 'Security', {
+        oldValue: 'Active',
+        newValue: `Locked (15 mins) for ${targetEmail}`,
+        reason: '5 consecutive failed password attempts detected.',
+        outcome: 'FAILED'
+      });
+    }
+    return nextAttempts;
+  };
+
+  const triggerLockoutForEmail = (targetEmail: string, seconds: number = 900) => {
+    if (!targetEmail) return;
+    const key = targetEmail.trim().toLowerCase();
+    const lockoutsMap = getLockoutsMap();
+    lockoutsMap[key] = Date.now() + seconds * 1000;
+    localStorage.setItem('pharmalabel_lockouts_map', JSON.stringify(lockoutsMap));
+  };
+
+  const clearLockoutForEmail = (targetEmail: string) => {
+    if (!targetEmail) return;
+    const key = targetEmail.trim().toLowerCase();
+    const lockoutsMap = getLockoutsMap();
+    delete lockoutsMap[key];
+    localStorage.setItem('pharmalabel_lockouts_map', JSON.stringify(lockoutsMap));
+
+    const attemptsMap = getAttemptsMap();
+    delete attemptsMap[key];
+    localStorage.setItem('pharmalabel_attempts_map', JSON.stringify(attemptsMap));
+  };
+
+  const resetAllLockouts = () => {
+    localStorage.removeItem('pharmalabel_lockouts_map');
+    localStorage.removeItem('pharmalabel_attempts_map');
+    localStorage.removeItem('pharmalabel_lockout_until');
+    localStorage.removeItem('pharmalabel_failed_attempts');
+    setFailedLoginAttempts(0);
+    setLockoutRemaining(0);
+  };
+
   const recordFailedLogin = (): number => {
     const nextAttempts = failedLoginAttempts + 1;
     setFailedLoginAttempts(nextAttempts);
@@ -363,11 +458,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const resetLockout = () => {
-    setFailedLoginAttempts(0);
-    setLockoutRemaining(0);
-    localStorage.removeItem('pharmalabel_failed_attempts');
-    localStorage.removeItem('pharmalabel_lockout_until');
-    localStorage.removeItem('pharmalabel_locked_email');
+    resetAllLockouts();
   };
 
   const hasPermission = (permission: string): boolean => {
@@ -1022,6 +1113,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         recordFailedLogin,
         triggerLockout,
         resetLockout,
+        getLockoutRemainingForEmail,
+        getFailedAttemptsForEmail,
+        recordFailedLoginForEmail,
+        triggerLockoutForEmail,
+        clearLockoutForEmail,
+        resetAllLockouts,
         hasPermission,
         logAudit,
         updateCompanySettings,
