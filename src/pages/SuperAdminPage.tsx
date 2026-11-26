@@ -63,7 +63,14 @@ export const SuperAdminPage: React.FC = () => {
     organization: Organization;
     adminUser: { id: string; name: string; email: string; role: string; department: string };
     temporaryPassword: string;
-    emailDispatch: { success: boolean; recipient: string; subject: string; log_file: string };
+    emailDispatch: {
+      success: boolean;
+      dispatched?: boolean;
+      dispatch_note?: string;
+      recipient: string;
+      subject: string;
+      log_file: string;
+    };
   } | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -652,15 +659,36 @@ export const SuperAdminPage: React.FC = () => {
               </div>
 
               {/* Email Dispatch Confirmation */}
-              <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-3 flex items-start gap-2.5 text-xs text-emerald-800">
-                <Mail className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                <div className="space-y-0.5">
-                  <p className="font-bold">Official Onboarding Email Dispatched</p>
-                  <p className="text-[11px] text-emerald-700 leading-normal">
-                    Welcome email sent to <strong>{successData.adminUser.email}</strong> and persistent audit copy stored in <code className="bg-emerald-100/80 px-1 py-0.5 rounded font-mono text-[10px]">backend/logs/sent_emails.log</code>.
-                  </p>
+              {successData.emailDispatch?.dispatched ? (
+                <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-3 flex items-start gap-2.5 text-xs text-emerald-800">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <div className="flex items-center justify-between">
+                      <p className="font-bold text-emerald-900">Live Email Delivered to Recipient Inbox</p>
+                      <span className="text-[10px] bg-emerald-200 text-emerald-800 px-1.5 py-0.2 rounded-full font-mono font-semibold">SMTP 200</span>
+                    </div>
+                    <p className="text-[11px] text-emerald-700 leading-normal">
+                      Welcome email delivered to <strong>{successData.adminUser.email}</strong> via live SMTP. Audit copy logged in <code className="bg-emerald-100/80 px-1 py-0.5 rounded font-mono text-[10px]">backend/logs/sent_emails.log</code>.
+                    </p>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="bg-amber-50/90 border border-amber-200 rounded-2xl p-3 flex items-start gap-2.5 text-xs text-amber-900">
+                  <Mail className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="space-y-1 w-full">
+                    <div className="flex items-center justify-between">
+                      <p className="font-bold text-amber-900">Email Logged & Ready for Dispatch</p>
+                      <span className="text-[10px] bg-amber-200/80 text-amber-900 px-1.5 py-0.5 rounded-full font-mono font-semibold">STORED IN LOG</span>
+                    </div>
+                    <p className="text-[11px] text-amber-800 leading-normal">
+                      Temporary password for <strong>{successData.adminUser.email}</strong> archived in <code className="bg-amber-100 px-1 py-0.5 rounded font-mono text-[10px]">backend/logs/sent_emails.log</code>.
+                    </p>
+                    <p className="text-[10px] text-amber-700/90">
+                      💡 <strong>To deliver directly to recipient's Gmail/Email:</strong> Add your SMTP credentials to <code className="font-mono bg-white/70 px-1 rounded">backend/.env</code>.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between gap-3">

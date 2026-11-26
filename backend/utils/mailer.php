@@ -13,6 +13,8 @@ if (!defined('PHARMALABEL_INIT')) {
     define('PHARMALABEL_INIT', true);
 }
 
+require_once __DIR__ . '/smtp_client.php';
+
 /**
  * Generate a cryptographically secure temporary password.
  * Format: Upper, Lower, Numbers, Special characters (Min 10 chars).
@@ -157,14 +159,26 @@ function sendOnboardingEmail(
 
     $headersString = implode("\r\n", $headers);
 
-    // 1. Attempt PHP mail()
+    // 1. Primary: Dispatch via Real RFC 5321 SMTP Client
     $mailSent = false;
-    try {
-        if (function_exists('mail') && php_sapi_name() !== 'cli') {
-            $mailSent = @mail($adminEmail, $subject, $htmlContent, $headersString);
-        }
-    } catch (Throwable $e) {
-        $mailSent = false;
+    $dispatchNote = '';
+
+    $smtpRes = sendSmtpEmail($adminEmail, $adminName, $subject, $htmlContent);
+    if ($smtpRes['success']) {
+        $mailSent = true;
+        $dispatchNote = "DELIVERED via SMTP (" . SMTP_HOST . ":" . SMTP_PORT . ")";
+    } else {
+        $dispatchNote = "SMTP: " . $smtpRes['message'];
+
+        // Secondary fallback to PHP mail() if available
+        try {
+            if (function_exists('mail') && php_sapi_name() !== 'cli') {
+                $mailSent = @mail($adminEmail, $subject, $htmlContent, $headersString);
+                if ($mailSent) {
+                    $dispatchNote = "SENT via PHP mail() fallback";
+                }
+            }
+        } catch (Throwable $e) {}
     }
 
     // 2. Always persist to backend/logs/sent_emails.log (Fail-safe local audit trail)
@@ -179,7 +193,8 @@ function sendOnboardingEmail(
     $logEntry .= "SUBJECT   : $subject\n";
     $logEntry .= "ORG_ID    : " . ($org['id'] ?? '') . "\n";
     $logEntry .= "TEMP_PASS : $tempPassword\n";
-    $logEntry .= "DISPATCH  : " . ($mailSent ? "SENT via SMTP/mail()" : "SAVED to Local Dispatch Log") . "\n";
+    $logEntry .= "STATUS    : " . ($mailSent ? "SUCCESSFULLY DISPATCHED TO INBOX" : "STORED IN SERVER DISPATCH LOG") . "\n";
+    $logEntry .= "DISPATCH  : $dispatchNote\n";
     $logEntry .= "--------------------------------- HTML BODY ------------------------------------\n";
     $logEntry .= $htmlContent . "\n";
     $logEntry .= "================================================================================\n\n";
@@ -189,6 +204,7 @@ function sendOnboardingEmail(
     return [
         'success'       => true,
         'dispatched'    => $mailSent,
+        'dispatch_note' => $dispatchNote,
         'recipient'     => $adminEmail,
         'subject'       => $subject,
         'temp_password' => $tempPassword,
