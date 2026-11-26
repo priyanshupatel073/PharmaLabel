@@ -52,6 +52,7 @@ interface AppContextType {
   switchRole: (role: Role) => void;
   failedLoginAttempts: number;
   lockoutRemaining: number;
+  recordFailedLogin: () => number;
   simulateFailedLogin: () => void;
   triggerLockout: (seconds?: number) => void;
   resetLockout: () => void;
@@ -166,7 +167,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const setActiveTab = (tab: string) => {
     navigate(getRouteForTab(tab));
   };
-  const [failedLoginAttempts, setFailedLoginAttempts] = useState<number>(0);
+  const [failedLoginAttempts, setFailedLoginAttempts] = useState<number>(() => {
+    return parseInt(localStorage.getItem('pharmalabel_failed_attempts') || '0', 10);
+  });
   const [lockoutRemaining, setLockoutRemaining] = useState<number>(() => {
     const savedUntilStr = localStorage.getItem('pharmalabel_lockout_until');
     if (savedUntilStr) {
@@ -333,9 +336,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const simulateFailedLogin = () => {
+  const recordFailedLogin = (): number => {
     const nextAttempts = failedLoginAttempts + 1;
     setFailedLoginAttempts(nextAttempts);
+    localStorage.setItem('pharmalabel_failed_attempts', String(nextAttempts));
     if (nextAttempts >= 5) {
       triggerLockout(900);
       logAudit('BRUTE_FORCE_LOCKOUT_TRIGGERED', 'Security', {
@@ -345,6 +349,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         outcome: 'FAILED'
       });
     }
+    return nextAttempts;
+  };
+
+  const simulateFailedLogin = () => {
+    recordFailedLogin();
   };
 
   const triggerLockout = (seconds: number = 900) => {
@@ -356,6 +365,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const resetLockout = () => {
     setFailedLoginAttempts(0);
     setLockoutRemaining(0);
+    localStorage.removeItem('pharmalabel_failed_attempts');
     localStorage.removeItem('pharmalabel_lockout_until');
     localStorage.removeItem('pharmalabel_locked_email');
   };
@@ -1009,6 +1019,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         failedLoginAttempts,
         lockoutRemaining,
         simulateFailedLogin,
+        recordFailedLogin,
         triggerLockout,
         resetLockout,
         hasPermission,

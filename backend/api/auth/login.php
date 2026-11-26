@@ -129,7 +129,7 @@ try {
 
     if (!$user) {
         // Unknown user
-        sendError('Invalid credentials. User does not exist.', 401);
+        sendError('Invalid credentials.', 401);
     }
 
     // Tenant check if organization_id passed

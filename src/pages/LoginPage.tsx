@@ -26,7 +26,9 @@ export const LoginPage: React.FC = () => {
   const {
     login,
     organizations,
+    failedLoginAttempts,
     lockoutRemaining,
+    recordFailedLogin,
     triggerLockout,
     resetLockout
   } = useApp();
@@ -42,7 +44,7 @@ export const LoginPage: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  // Sync lockout status with backend database & persistent localStorage
+  // Sync lockout & attempts status on component mount / tab switch
   useEffect(() => {
     // 1. Instant check from localStorage
     const savedUntil = localStorage.getItem('pharmalabel_lockout_until');
@@ -51,12 +53,20 @@ export const LoginPage: React.FC = () => {
       if (diff > 0) {
         triggerLockout(diff);
         setErrorMessage(`Account is locked due to 5 consecutive failed login attempts (${diff}s remaining).`);
+        return;
       } else {
         resetLockout();
       }
     }
 
-    // 2. Persistent Database Check via PHP API
+    const savedAttempts = parseInt(localStorage.getItem('pharmalabel_failed_attempts') || '0', 10);
+    if (savedAttempts > 0 && savedAttempts < 5) {
+      const left = 5 - savedAttempts;
+      setErrorMessage(`Invalid credentials. ${left} attempt${left === 1 ? '' : 's'} remaining before 15-minute 21 CFR Part 11 account lockout.`);
+    }
+  }, [activeTab]);
+
+  const handleEmailBlur = () => {
     if (email && email.includes('@')) {
       fetch(`/api/auth/login.php?email=${encodeURIComponent(email.trim())}`)
         .then(res => res.json())
@@ -65,15 +75,11 @@ export const LoginPage: React.FC = () => {
             const sec = json.data.remaining_seconds || 900;
             triggerLockout(sec);
             setErrorMessage(`Account is locked in database (21 CFR Part 11). Please wait (${sec}s remaining).`);
-          } else if (!savedUntil && lockoutRemaining > 0) {
-            resetLockout();
           }
         })
-        .catch(() => {
-          // Graceful fallback if backend is offline
-        });
+        .catch(() => {});
     }
-  }, [email]);
+  };
 
   // Handle Tab Switch
   const handleTabChange = (tab: 'company' | 'superadmin') => {
@@ -159,7 +165,14 @@ export const LoginPage: React.FC = () => {
           triggerLockout(remainingSec);
           setErrorMessage(res.message);
         } else {
-          setErrorMessage(res.message || 'Authentication failed. Please check credentials.');
+          // Increment failed attempt counter (counts down for ALL credentials, including unregistered test emails!)
+          const nextAttempts = recordFailedLogin();
+          if (nextAttempts >= 5) {
+            setErrorMessage('Account locked out for 15 minutes due to 5 consecutive failed attempts.');
+          } else {
+            const left = 5 - nextAttempts;
+            setErrorMessage(`Invalid credentials. ${left} attempt${left === 1 ? '' : 's'} remaining before 15-minute 21 CFR Part 11 account lockout.`);
+          }
         }
       }
     } catch (err: any) {
@@ -333,6 +346,7 @@ export const LoginPage: React.FC = () => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  onBlur={handleEmailBlur}
                   placeholder={activeTab === 'superadmin' ? 'superadmin@camelcomm.in' : 'name@pharma.com'}
                   className="flex-1 bg-transparent px-3.5 py-2.5 text-xs text-[#0d3b75] font-medium placeholder:text-[#9ab1ce] focus:outline-none"
                 />
