@@ -46,6 +46,24 @@ export const LoginPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [activeLockout, setActiveLockout] = useState<number>(0);
 
+  // Check for prefilled credentials from SuperAdmin onboarding
+  useEffect(() => {
+    const prefillEmail = localStorage.getItem('pharmalabel_prefill_email');
+    const prefillOrg = localStorage.getItem('pharmalabel_prefill_org');
+    const prefillPass = localStorage.getItem('pharmalabel_prefill_pass');
+    if (prefillEmail && prefillOrg) {
+      setActiveTab('company');
+      setSelectedOrgId(prefillOrg);
+      setEmail(prefillEmail);
+      if (prefillPass) {
+        setPassword(prefillPass);
+      }
+      localStorage.removeItem('pharmalabel_prefill_email');
+      localStorage.removeItem('pharmalabel_prefill_org');
+      localStorage.removeItem('pharmalabel_prefill_pass');
+    }
+  }, []);
+
   // Helper to get default email for an org
   const getDefaultEmailForOrg = (orgId: string): string => {
     if (orgId === 'ORG-SUNPHARMA') return 'admin@sunpharma.com';
@@ -53,7 +71,7 @@ export const LoginPage: React.FC = () => {
     return 'supervisor@apexpharma.com';
   };
 
-  // Sync lockout & attempts status on email, tab, or company change
+  // Sync lockout & attempts status on tab or company change (avoids keypress fetch spam)
   useEffect(() => {
     if (!email) {
       setActiveLockout(0);
@@ -71,7 +89,6 @@ export const LoginPage: React.FC = () => {
       return;
     } else {
       setActiveLockout(0);
-      setErrorMessage('');
     }
 
     // 2. Check against backend database for this specific email
@@ -90,7 +107,7 @@ export const LoginPage: React.FC = () => {
         })
         .catch(() => {});
     }
-  }, [email, activeTab, selectedOrgId]);
+  }, [activeTab, selectedOrgId]);
 
   // Countdown timer for activeLockout
   useEffect(() => {
@@ -107,6 +124,13 @@ export const LoginPage: React.FC = () => {
     }, 1000);
     return () => clearInterval(interval);
   }, [activeLockout, email]);
+
+  const handleEmailChange = (val: string) => {
+    setEmail(val);
+    setErrorMessage('');
+    const remaining = getLockoutRemainingForEmail(val.trim().toLowerCase());
+    setActiveLockout(remaining);
+  };
 
   const handleEmailBlur = () => {
     if (email && email.includes('@')) {
@@ -249,7 +273,7 @@ export const LoginPage: React.FC = () => {
             setErrorMessage('Account locked out for 15 minutes due to 5 consecutive failed attempts.');
           } else {
             const left = 5 - nextAttempts;
-            setErrorMessage(`Invalid credentials. ${left} attempt${left === 1 ? '' : 's'} remaining before 15-minute 21 CFR Part 11 account lockout.`);
+            setErrorMessage(res.message || `Invalid credentials. ${left} attempt${left === 1 ? '' : 's'} remaining before 15-minute 21 CFR Part 11 account lockout.`);
           }
         }
       }
@@ -440,7 +464,7 @@ export const LoginPage: React.FC = () => {
                   type="email"
                   required
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => handleEmailChange(e.target.value)}
                   onBlur={handleEmailBlur}
                   placeholder={activeTab === 'superadmin' ? 'superadmin@camelcomm.in' : 'name@pharma.com'}
                   className="flex-1 bg-transparent px-3.5 py-2.5 text-xs text-[#0d3b75] font-medium placeholder:text-[#9ab1ce] focus:outline-none"

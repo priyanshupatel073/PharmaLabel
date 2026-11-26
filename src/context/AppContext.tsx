@@ -44,6 +44,7 @@ interface AppContextType {
   isAuthenticated: boolean;
   currentOrganization: Organization;
   organizations: Organization[];
+  refreshOrganizations: () => Promise<void>;
   login: (user: User, org?: Organization) => void;
   logout: () => void;
   sessionRemaining: number;
@@ -154,6 +155,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem('pharmalabel_current_org');
     return saved ? JSON.parse(saved) : INITIAL_ORGANIZATIONS[0];
   });
+
+  const refreshOrganizations = async () => {
+    try {
+      const res = await fetch('/api/superadmin/organizations.php');
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          setOrganizations(json.data);
+          localStorage.setItem('pharmalabel_orgs', JSON.stringify(json.data));
+        }
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    refreshOrganizations();
+  }, []);
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     const saved = localStorage.getItem('pharmalabel_auth');
@@ -1115,6 +1133,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isAuthenticated,
         currentOrganization,
         organizations,
+        refreshOrganizations,
         login,
         logout,
         sessionRemaining,

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Organization } from '../types';
 import {
@@ -17,20 +18,28 @@ import {
   Layers,
   ArrowUpRight,
   RefreshCw,
-  X
+  X,
+  Copy,
+  Check,
+  Mail,
+  ExternalLink
 } from 'lucide-react';
 
 export const SuperAdminPage: React.FC = () => {
   const {
     organizations,
+    refreshOrganizations,
     onboardOrganization,
     updateOrganizationLicense,
     auditLogs
   } = useApp();
 
+  const navigate = useNavigate();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'WARNING' | 'SUSPENDED'>('ALL');
   const [modalOpen, setModalOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Form state for new onboarding
   const [newOrgName, setNewOrgName] = useState('');
@@ -39,6 +48,17 @@ export const SuperAdminPage: React.FC = () => {
   const [newGs1Prefix, setNewGs1Prefix] = useState('890');
   const [newEdition, setNewEdition] = useState<Organization['edition']>('Enterprise Unlimited Traceability');
   const [newValidUntil, setNewValidUntil] = useState('2027-12-31');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [onboardError, setOnboardError] = useState('');
+
+  // Onboarding Success Modal State
+  const [successData, setSuccessData] = useState<{
+    organization: Organization;
+    adminUser: { id: string; name: string; email: string; role: string; department: string };
+    temporaryPassword: string;
+    emailDispatch: { success: boolean; recipient: string; subject: string; log_file: string };
+  } | null>(null);
+  const [copied, setCopied] = useState(false);
 
   // Filtered organizations
   const filteredOrgs = organizations.filter(org => {
@@ -57,26 +77,74 @@ export const SuperAdminPage: React.FC = () => {
   const warningCount = organizations.filter(o => o.licenseStatus === 'WARNING').length;
   const suspendedCount = organizations.filter(o => o.licenseStatus === 'SUSPENDED' || o.licenseStatus === 'EXPIRED').length;
 
-  const handleOnboardSubmit = (e: React.FormEvent) => {
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    await refreshOrganizations();
+    setTimeout(() => setIsRefreshing(false), 500);
+  };
+
+  const handleOnboardSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newOrgName || !newEmail || !newGs1Prefix) return;
 
-    onboardOrganization({
-      name: newOrgName,
-      plantLocation: newLocation || 'Primary Manufacturing Site',
-      contactEmail: newEmail,
-      gs1Prefix: newGs1Prefix,
-      edition: newEdition,
-      licenseStatus: 'ACTIVE',
-      validUntil: newValidUntil
-    });
+    setIsSubmitting(true);
+    setOnboardError('');
 
-    // Reset
-    setNewOrgName('');
-    setNewLocation('');
-    setNewEmail('');
-    setNewGs1Prefix('890');
-    setModalOpen(false);
+    try {
+      const response = await fetch('/api/superadmin/organizations.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: newOrgName.trim(),
+          plant_location: (newLocation || 'Primary Manufacturing Site').trim(),
+          contact_email: newEmail.trim().toLowerCase(),
+          gs1_company_prefix: newGs1Prefix.trim(),
+          edition: newEdition,
+          valid_until: newValidUntil
+        })
+      });
+
+      const res = await response.json();
+
+      if (response.ok && res.success) {
+        // Success! Set data for popup modal
+        setSuccessData(res.data);
+        await refreshOrganizations();
+
+        // Reset form & close onboard drawer
+        setNewOrgName('');
+        setNewLocation('');
+        setNewEmail('');
+        setNewGs1Prefix('890');
+        setModalOpen(false);
+      } else {
+        setOnboardError(res.message || 'Failed to onboard organization.');
+      }
+    } catch (err: any) {
+      setOnboardError('Unable to connect to onboarding backend API. Please ensure server is running.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCopyPassword = () => {
+    if (successData?.temporaryPassword) {
+      navigator.clipboard.writeText(successData.temporaryPassword);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    }
+  };
+
+  const handleNavigateToLoginWithCredentials = () => {
+    if (successData) {
+      // Store targeted org in localStorage for instant prefill
+      localStorage.setItem('pharmalabel_prefill_email', successData.adminUser.email);
+      localStorage.setItem('pharmalabel_prefill_org', successData.organization.id);
+      localStorage.setItem('pharmalabel_prefill_pass', successData.temporaryPassword);
+    }
+    navigate('/login');
   };
 
   const handleRenewOneYear = (org: Organization) => {
@@ -111,11 +179,24 @@ export const SuperAdminPage: React.FC = () => {
 
         <div className="mt-6 flex flex-wrap gap-3 relative z-10">
           <button
-            onClick={() => setModalOpen(true)}
+            onClick={() => {
+              setOnboardError('');
+              setModalOpen(true);
+            }}
             className="px-4 py-2.5 bg-white text-purple-900 rounded-xl font-bold text-xs flex items-center gap-2 hover:bg-purple-50 shadow-lg transition active:scale-95"
           >
             <Plus className="w-4 h-4 text-purple-700" />
             Onboard New Pharma Company
+          </button>
+
+          <button
+            onClick={handleManualRefresh}
+            disabled={isRefreshing}
+            className="px-3.5 py-2.5 bg-purple-950/70 hover:bg-purple-900 border border-purple-600/50 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 transition active:scale-95 disabled:opacity-50"
+            title="Sync organizations from backend database"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span>Sync DB</span>
           </button>
 
           <div className="flex items-center gap-2 bg-purple-950/60 border border-purple-700/50 px-3.5 py-2 rounded-xl text-xs text-purple-200">
@@ -403,22 +484,155 @@ export const SuperAdminPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Error Alert inside Form */}
+              {onboardError && (
+                <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
+                  <span>{onboardError}</span>
+                </div>
+              )}
+
               <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2">
                 <button
                   type="button"
+                  disabled={isSubmitting}
                   onClick={() => setModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-md transition"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-md transition disabled:opacity-50 flex items-center gap-1.5"
                 >
-                  Provision Tenant & Issue License
+                  {isSubmitting ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Provisioning & Dispatching Email...</span>
+                    </>
+                  ) : (
+                    <span>Provision Tenant & Issue License</span>
+                  )}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Onboard Success Modal with Generated Temporary Password & Email Dispatch */}
+      {successData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 text-slate-900 relative">
+            <button
+              onClick={() => setSuccessData(null)}
+              className="absolute top-5 right-5 text-slate-400 hover:text-slate-700 p-1 rounded-lg"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-7 h-7" />
+              </div>
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                  Provisioning Complete · 21 CFR Part 11
+                </span>
+                <h3 className="font-extrabold text-lg text-slate-900 mt-0.5">
+                  Tenant Onboarded & Credentials Dispatched
+                </h3>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-3.5">
+              {/* Tenant Metadata Card */}
+              <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200/80 space-y-2 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-medium">Organization / Plant:</span>
+                  <span className="font-bold text-slate-900">{successData.organization.name}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-medium">Assigned Org ID:</span>
+                  <span className="font-mono font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                    {successData.organization.id}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-medium">GS1 Company Prefix:</span>
+                  <span className="font-mono font-bold text-slate-900">
+                    {successData.organization.gs1Prefix}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-medium">Plant Admin Email:</span>
+                  <span className="font-bold text-brand-700 font-mono">
+                    {successData.adminUser.email}
+                  </span>
+                </div>
+              </div>
+
+              {/* Temporary Password Highlight Box */}
+              <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
+                    <KeyRound className="w-4 h-4 text-amber-600" />
+                    <span>Cryptographic Temporary Password</span>
+                  </div>
+                  <span className="text-[10px] bg-amber-200/60 text-amber-900 font-bold px-2 py-0.5 rounded-full">
+                    Auto-Generated
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between bg-white/90 border border-amber-300/80 rounded-xl px-3.5 py-2.5 mt-2">
+                  <span className="font-mono font-black text-base text-slate-900 tracking-wider">
+                    {successData.temporaryPassword}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleCopyPassword}
+                    className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition active:scale-95 shadow-sm"
+                  >
+                    {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copied ? 'Copied!' : 'Copy'}</span>
+                  </button>
+                </div>
+                <p className="text-[11px] text-amber-800/90 mt-2 leading-relaxed">
+                  Notice: Plant Admin must update this temporary password upon first login per GxP ALCOA+ compliance guidelines.
+                </p>
+              </div>
+
+              {/* Email Dispatch Confirmation */}
+              <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-3 flex items-start gap-2.5 text-xs text-emerald-800">
+                <Mail className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <p className="font-bold">Official Onboarding Email Dispatched</p>
+                  <p className="text-[11px] text-emerald-700 leading-normal">
+                    Welcome email sent to <strong>{successData.adminUser.email}</strong> and persistent audit copy stored in <code className="bg-emerald-100/80 px-1 py-0.5 rounded font-mono text-[10px]">backend/logs/sent_emails.log</code>.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setSuccessData(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
+              >
+                Close
+              </button>
+
+              <button
+                type="button"
+                onClick={handleNavigateToLoginWithCredentials}
+                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center gap-1.5 active:scale-95"
+              >
+                <span>Test Sign-In as This Tenant</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         </div>
       )}
