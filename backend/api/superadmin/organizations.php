@@ -106,8 +106,8 @@ try {
         if (empty($contactEmail) || !filter_var($contactEmail, FILTER_VALIDATE_EMAIL)) {
             $validationErrors['contact_email'] = 'A valid corporate admin contact email is required.';
         }
-        if (empty($gs1Prefix) || !ctype_digit($gs1Prefix) || strlen($gs1Prefix) < 6 || strlen($gs1Prefix) > 10) {
-            $validationErrors['gs1_company_prefix'] = 'GS1 Company Prefix must be 6 to 10 numeric digits.';
+        if (empty($gs1Prefix) || !ctype_digit($gs1Prefix) || strlen($gs1Prefix) < 3 || strlen($gs1Prefix) > 11) {
+            $validationErrors['gs1_company_prefix'] = 'GS1 Company Prefix must be 3 to 11 numeric digits (e.g. 890 or 8901234).';
         }
 
         if (!empty($validationErrors)) {

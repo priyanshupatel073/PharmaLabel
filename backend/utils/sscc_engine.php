@@ -64,8 +64,8 @@ function generateSSCC18(string $extensionDigit, string $companyPrefix, int $seri
         throw new InvalidArgumentException("Extension digit must be exactly 1 numeric character.");
     }
 
-    if (strlen($prefix) < 6 || strlen($prefix) > 11 || !ctype_digit($prefix)) {
-        throw new InvalidArgumentException("GS1 Company Prefix must be 6 to 11 numeric digits.");
+    if (strlen($prefix) < 3 || strlen($prefix) > 11 || !ctype_digit($prefix)) {
+        throw new InvalidArgumentException("GS1 Company Prefix must be 3 to 11 numeric digits.");
     }
 
     // Total payload before check digit must be exactly 17 digits
