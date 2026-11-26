@@ -53,6 +53,7 @@ interface AppContextType {
   failedLoginAttempts: number;
   lockoutRemaining: number;
   simulateFailedLogin: () => void;
+  triggerLockout: (seconds?: number) => void;
   resetLockout: () => void;
   hasPermission: (permission: string) => boolean;
 
@@ -166,7 +167,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     navigate(getRouteForTab(tab));
   };
   const [failedLoginAttempts, setFailedLoginAttempts] = useState<number>(0);
-  const [lockoutRemaining, setLockoutRemaining] = useState<number>(0);
+  const [lockoutRemaining, setLockoutRemaining] = useState<number>(() => {
+    const savedUntilStr = localStorage.getItem('pharmalabel_lockout_until');
+    if (savedUntilStr) {
+      const until = parseInt(savedUntilStr, 10);
+      const diffSec = Math.floor((until - Date.now()) / 1000);
+      return diffSec > 0 ? diffSec : 0;
+    }
+    return 0;
+  });
 
   // Sync to localStorage
   useEffect(() => {
@@ -230,9 +239,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Lockout countdown timer
   useEffect(() => {
-    if (lockoutRemaining <= 0) return;
+    if (lockoutRemaining <= 0) {
+      localStorage.removeItem('pharmalabel_lockout_until');
+      return;
+    }
     const interval = setInterval(() => {
-      setLockoutRemaining((prev) => Math.max(0, prev - 1));
+      setLockoutRemaining((prev) => {
+        const next = Math.max(0, prev - 1);
+        if (next === 0) {
+          localStorage.removeItem('pharmalabel_lockout_until');
+        }
+        return next;
+      });
     }, 1000);
     return () => clearInterval(interval);
   }, [lockoutRemaining]);
@@ -319,7 +337,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const nextAttempts = failedLoginAttempts + 1;
     setFailedLoginAttempts(nextAttempts);
     if (nextAttempts >= 5) {
-      setLockoutRemaining(900); // 15 mins = 900 seconds
+      triggerLockout(900);
       logAudit('BRUTE_FORCE_LOCKOUT_TRIGGERED', 'Security', {
         oldValue: 'Active',
         newValue: 'Locked (15 mins)',
@@ -329,9 +347,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const triggerLockout = (seconds: number = 900) => {
+    setLockoutRemaining(seconds);
+    const until = Date.now() + seconds * 1000;
+    localStorage.setItem('pharmalabel_lockout_until', String(until));
+  };
+
   const resetLockout = () => {
     setFailedLoginAttempts(0);
     setLockoutRemaining(0);
+    localStorage.removeItem('pharmalabel_lockout_until');
+    localStorage.removeItem('pharmalabel_locked_email');
   };
 
   const hasPermission = (permission: string): boolean => {
@@ -983,6 +1009,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         failedLoginAttempts,
         lockoutRemaining,
         simulateFailedLogin,
+        triggerLockout,
         resetLockout,
         hasPermission,
         logAudit,

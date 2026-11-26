@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { INITIAL_USERS } from '../utils/mockData';
-import { Role } from '../types';
+import { Role, User } from '../types';
 import {
   FlaskConical,
   Building2,
@@ -26,9 +26,8 @@ export const LoginPage: React.FC = () => {
   const {
     login,
     organizations,
-    simulateFailedLogin,
-    failedLoginAttempts,
     lockoutRemaining,
+    triggerLockout,
     resetLockout
   } = useApp();
 
@@ -43,6 +42,39 @@ export const LoginPage: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
+  // Sync lockout status with backend database & persistent localStorage
+  useEffect(() => {
+    // 1. Instant check from localStorage
+    const savedUntil = localStorage.getItem('pharmalabel_lockout_until');
+    if (savedUntil) {
+      const diff = Math.floor((parseInt(savedUntil, 10) - Date.now()) / 1000);
+      if (diff > 0) {
+        triggerLockout(diff);
+        setErrorMessage(`Account is locked due to 5 consecutive failed login attempts (${diff}s remaining).`);
+      } else {
+        resetLockout();
+      }
+    }
+
+    // 2. Persistent Database Check via PHP API
+    if (email && email.includes('@')) {
+      fetch(`/api/auth/login.php?email=${encodeURIComponent(email.trim())}`)
+        .then(res => res.json())
+        .then(json => {
+          if (json?.data?.locked) {
+            const sec = json.data.remaining_seconds || 900;
+            triggerLockout(sec);
+            setErrorMessage(`Account is locked in database (21 CFR Part 11). Please wait (${sec}s remaining).`);
+          } else if (!savedUntil && lockoutRemaining > 0) {
+            resetLockout();
+          }
+        })
+        .catch(() => {
+          // Graceful fallback if backend is offline
+        });
+    }
+  }, [email]);
+
   // Handle Tab Switch
   const handleTabChange = (tab: 'company' | 'superadmin') => {
     setActiveTab(tab);
@@ -56,8 +88,8 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  // Perform Login
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  // Perform Real Backend Authenticated Login
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (lockoutRemaining > 0) {
       setErrorMessage(`System lockout active. Please wait ${Math.floor(lockoutRemaining / 60)}m ${lockoutRemaining % 60}s.`);
@@ -72,59 +104,88 @@ export const LoginPage: React.FC = () => {
     setIsSubmitting(true);
     setErrorMessage('');
 
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      const response = await fetch('/api/auth/login.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+          organization_id: activeTab === 'company' ? selectedOrgId : undefined
+        })
+      });
 
-      if (activeTab === 'superadmin') {
-        const superAdminUser = INITIAL_USERS.find(u => u.role === 'SuperAdmin');
-        if (
-          superAdminUser &&
-          (email.toLowerCase().includes('superadmin') || email.toLowerCase().includes('camel')) &&
-          password === 'Password@123'
-        ) {
-          login(superAdminUser);
+      const res = await response.json();
+
+      if (response.ok && res.success) {
+        // Clear client and server lockout states
+        resetLockout();
+        if (res.data?.token) {
+          localStorage.setItem('pharmalabel_token', res.data.token);
+        }
+
+        const dbUser = res.data.user;
+        const matchedMock = INITIAL_USERS.find(u => u.email.toLowerCase() === dbUser.email.toLowerCase()) || INITIAL_USERS.find(u => u.role === dbUser.role);
+
+        const loggedInUser: User = {
+          id: dbUser.id,
+          name: dbUser.name,
+          email: dbUser.email,
+          role: dbUser.role,
+          department: dbUser.department,
+          permissions: matchedMock ? matchedMock.permissions : ['print_labels', 'view_audit'],
+          status: 'ACTIVE',
+          lastLogin: res.timestamp
+        };
+
+        const targetOrg = organizations.find(o => o.id === (res.data.organization?.id || selectedOrgId)) || organizations[0];
+
+        login(loggedInUser, activeTab === 'superadmin' ? undefined : targetOrg);
+
+        if (loggedInUser.role === 'SuperAdmin') {
           navigate('/superadmin');
-          return;
+        } else if (loggedInUser.role === 'Operator') {
+          navigate('/printing');
+        } else {
+          navigate('/dashboard');
         }
       } else {
-        const matchedOrg = organizations.find(o => o.id === selectedOrgId);
-        if (!matchedOrg) {
-          setErrorMessage('Invalid Organization ID or client tenant record not found.');
-          return;
-        }
-
-        if (matchedOrg.licenseStatus === 'EXPIRED' || matchedOrg.licenseStatus === 'SUSPENDED') {
-          setErrorMessage(`Access Denied: ${matchedOrg.name} license is ${matchedOrg.licenseStatus}. Please contact Camel Communication.`);
-          return;
-        }
-
-        const matchedUser = INITIAL_USERS.find(u => u.email.toLowerCase() === email.trim().toLowerCase());
-        if (matchedUser && password === 'Password@123') {
-          login(matchedUser, matchedOrg);
-          if (matchedUser.role === 'Operator') {
-            navigate('/printing');
-          } else {
-            navigate('/dashboard');
-          }
-          return;
+        // Handle failed login
+        if (response.status === 403 && (res.errors?.locked || res.message?.includes('locked') || res.message?.includes('consecutive'))) {
+          // Lockout triggered in database!
+          const remainingSec = res.errors?.remaining_seconds || 900;
+          triggerLockout(remainingSec);
+          setErrorMessage(res.message);
+        } else {
+          setErrorMessage(res.message || 'Authentication failed. Please check credentials.');
         }
       }
-
-      // If credentials failed
-      simulateFailedLogin();
-      const left = 4 - failedLoginAttempts;
-      if (left > 0) {
-        setErrorMessage(`Invalid credentials. ${left} attempt${left === 1 ? '' : 's'} remaining before 15-minute 21 CFR Part 11 account lockout.`);
-      } else {
-        setErrorMessage('Account locked out for 15 minutes due to 5 consecutive failed attempts.');
-      }
-    }, 400);
+    } catch (err: any) {
+      setErrorMessage('Unable to communicate with authentication server. Please check backend.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // 1-Click Fast Demo Login Handler
-  const handleQuickDemoLogin = (role: Role, orgId?: string) => {
+  const handleQuickDemoLogin = async (role: Role, orgId?: string) => {
     resetLockout();
     setErrorMessage('');
+    const targetEmail = role === 'SuperAdmin' ? 'superadmin@camelcomm.in' : 
+      role === 'Admin' ? 'admin@apexpharma.com' :
+      role === 'Supervisor' ? 'supervisor@apexpharma.com' : 'operator@apexpharma.com';
+
+    // Clear backend lock if previously locked
+    try {
+      await fetch('/api/auth/login.php?action=unlock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: targetEmail })
+      });
+    } catch (e) {}
+
     if (role === 'SuperAdmin') {
       const superUser = INITIAL_USERS.find(u => u.role === 'SuperAdmin')!;
       login(superUser);
@@ -139,6 +200,19 @@ export const LoginPage: React.FC = () => {
         navigate('/dashboard');
       }
     }
+  };
+
+  // Manual Lockout Override for Testing
+  const handleOverrideUnlock = async () => {
+    try {
+      await fetch('/api/auth/login.php?action=unlock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() })
+      });
+    } catch (e) {}
+    resetLockout();
+    setErrorMessage('');
   };
 
   const selectedOrg = organizations.find(o => o.id === selectedOrgId);
@@ -168,11 +242,10 @@ export const LoginPage: React.FC = () => {
           <button
             type="button"
             onClick={() => handleTabChange('company')}
-            className={`flex-1 py-2 px-3 rounded-2xl text-center text-xs transition-all ${
-              activeTab === 'company'
-                ? 'bg-white text-[#0d3b75] font-bold shadow-xs'
-                : 'text-[#6280a8] hover:text-[#0d3b75]'
-            }`}
+            className={`flex-1 py-2 px-3 rounded-2xl text-center text-xs transition-all ${activeTab === 'company'
+              ? 'bg-white text-[#0d3b75] font-bold shadow-xs'
+              : 'text-[#6280a8] hover:text-[#0d3b75]'
+              }`}
           >
             Plant Sign In
           </button>
@@ -180,13 +253,12 @@ export const LoginPage: React.FC = () => {
           <button
             type="button"
             onClick={() => handleTabChange('superadmin')}
-            className={`flex-1 py-2 px-3 rounded-2xl text-center text-xs transition-all ${
-              activeTab === 'superadmin'
-                ? 'bg-white text-[#0d3b75] font-bold shadow-xs'
-                : 'text-[#6280a8] hover:text-[#0d3b75]'
-            }`}
+            className={`flex-1 py-2 px-3 rounded-2xl text-center text-xs transition-all ${activeTab === 'superadmin'
+              ? 'bg-white text-[#0d3b75] font-bold shadow-xs'
+              : 'text-[#6280a8] hover:text-[#0d3b75]'
+              }`}
           >
-            Camel SuperAdmin
+            SuperAdmin
           </button>
         </div>
 
@@ -214,177 +286,177 @@ export const LoginPage: React.FC = () => {
 
           {/* Main Form */}
           <form onSubmit={handleLoginSubmit} className="space-y-4">
-              {/* Field 1: Organization Dropdown (Only for Company Login) */}
-              {activeTab === 'company' && (
-                <div>
-                  <label className="text-xs font-bold text-[#0d3b75] ml-3 mb-1.5 block">
-                    Organization / Plant
-                  </label>
-                  <div className="relative flex items-center bg-[#f7faff] border border-[#d2e2f3] rounded-full overflow-hidden focus-within:border-[#0088ff] focus-within:ring-2 focus-within:ring-[#0088ff]/20">
-                    <div className="w-11 h-11 flex items-center justify-center border-r border-[#dbe7f5] text-[#0080ff] shrink-0">
-                      <Building2 className="w-4 h-4" />
-                    </div>
-                    <select
-                      value={selectedOrgId}
-                      onChange={(e) => setSelectedOrgId(e.target.value)}
-                      className="flex-1 bg-transparent px-3.5 py-2.5 text-xs text-[#0d3b75] font-semibold appearance-none focus:outline-none cursor-pointer"
-                    >
-                      {organizations.map(org => (
-                        <option key={org.id} value={org.id}>
-                          {org.name} ({org.id})
-                        </option>
-                      ))}
-                    </select>
-
-                    <div className="w-10 h-11 flex items-center justify-center border-l border-[#dbe7f5] text-[#0080ff] shrink-0">
-                      <ChevronDown className="w-4 h-4" />
-                    </div>
-                  </div>
-                  <div className="text-[10px] text-[#6b88b0] ml-3 mt-1 flex items-center justify-between">
-                    <span>{selectedOrg?.plantLocation}</span>
-                    <span className="font-bold text-emerald-600 font-mono">GS1: {selectedOrg?.gs1Prefix}</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Field 2: Login / Email (Direct pill style like screenshot) */}
+            {/* Field 1: Organization Dropdown (Only for Company Login) */}
+            {activeTab === 'company' && (
               <div>
                 <label className="text-xs font-bold text-[#0d3b75] ml-3 mb-1.5 block">
-                  {activeTab === 'superadmin' ? 'SuperAdmin Master Email' : 'Login Email'}
+                  Organization / Plant
                 </label>
                 <div className="relative flex items-center bg-[#f7faff] border border-[#d2e2f3] rounded-full overflow-hidden focus-within:border-[#0088ff] focus-within:ring-2 focus-within:ring-[#0088ff]/20">
                   <div className="w-11 h-11 flex items-center justify-center border-r border-[#dbe7f5] text-[#0080ff] shrink-0">
-                    <Mail className="w-4 h-4" />
+                    <Building2 className="w-4 h-4" />
                   </div>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder={activeTab === 'superadmin' ? 'superadmin@camelcomm.in' : 'name@pharma.com'}
-                    className="flex-1 bg-transparent px-3.5 py-2.5 text-xs text-[#0d3b75] font-medium placeholder:text-[#9ab1ce] focus:outline-none"
-                  />
-                  {email && (
-                    <button
-                      type="button"
-                      onClick={() => setEmail('')}
-                      className="w-8 h-11 flex items-center justify-center text-slate-400 hover:text-rose-500 transition mr-1"
-                    >
-                      <span className="w-4 h-4 rounded-full bg-rose-400 text-white text-[10px] flex items-center justify-center font-bold">
-                        <X className="w-3 h-3" />
-                      </span>
-                    </button>
-                  )}
+                  <select
+                    value={selectedOrgId}
+                    onChange={(e) => setSelectedOrgId(e.target.value)}
+                    className="flex-1 bg-transparent px-3.5 py-2.5 text-xs text-[#0d3b75] font-semibold appearance-none focus:outline-none cursor-pointer"
+                  >
+                    {organizations.map(org => (
+                      <option key={org.id} value={org.id}>
+                        {org.name} ({org.id})
+                      </option>
+                    ))}
+                  </select>
+
+                  <div className="w-10 h-11 flex items-center justify-center border-l border-[#dbe7f5] text-[#0080ff] shrink-0">
+                    <ChevronDown className="w-4 h-4" />
+                  </div>
                 </div>
-                <div className="text-[10px] text-[#8ea4bf] ml-3 mt-1">
-                  {activeTab === 'superadmin' ? 'Platform management credential' : 'Corporate employee directory address'}
+                <div className="text-[10px] text-[#6b88b0] ml-3 mt-1 flex items-center justify-between">
+                  <span>{selectedOrg?.plantLocation}</span>
+                  <span className="font-bold text-emerald-600 font-mono">GS1: {selectedOrg?.gs1Prefix}</span>
                 </div>
               </div>
+            )}
 
-              {/* Field 3: Password (Pill style with lock icon on left and toggle on right) */}
-              <div>
-                <label className="text-xs font-bold text-[#0d3b75] ml-3 mb-1.5 block">
-                  Password
-                </label>
-                <div className="relative flex items-center bg-[#f7faff] border border-[#d2e2f3] rounded-full overflow-hidden focus-within:border-[#0088ff] focus-within:ring-2 focus-within:ring-[#0088ff]/20">
-                  <div className="w-11 h-11 flex items-center justify-center border-r border-[#dbe7f5] text-[#0080ff] shrink-0">
-                    <Lock className="w-4 h-4" />
-                  </div>
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••••••"
-                    className="flex-1 bg-transparent px-3.5 py-2.5 text-xs text-[#0d3b75] font-medium placeholder:text-[#9ab1ce] focus:outline-none"
-                  />
-
-                  {password && (
-                    <button
-                      type="button"
-                      onClick={() => setPassword('')}
-                      className="w-6 h-11 flex items-center justify-center text-slate-400 hover:text-rose-500 transition"
-                    >
-                      <span className="w-4 h-4 rounded-full bg-rose-400 text-white text-[10px] flex items-center justify-center font-bold">
-                        <X className="w-3 h-3" />
-                      </span>
-                    </button>
-                  )}
-
+            {/* Field 2: Login / Email (Direct pill style like screenshot) */}
+            <div>
+              <label className="text-xs font-bold text-[#0d3b75] ml-3 mb-1.5 block">
+                {activeTab === 'superadmin' ? 'SuperAdmin Master Email' : 'Login Email'}
+              </label>
+              <div className="relative flex items-center bg-[#f7faff] border border-[#d2e2f3] rounded-full overflow-hidden focus-within:border-[#0088ff] focus-within:ring-2 focus-within:ring-[#0088ff]/20">
+                <div className="w-11 h-11 flex items-center justify-center border-r border-[#dbe7f5] text-[#0080ff] shrink-0">
+                  <Mail className="w-4 h-4" />
+                </div>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder={activeTab === 'superadmin' ? 'superadmin@camelcomm.in' : 'name@pharma.com'}
+                  className="flex-1 bg-transparent px-3.5 py-2.5 text-xs text-[#0d3b75] font-medium placeholder:text-[#9ab1ce] focus:outline-none"
+                />
+                {email && (
                   <button
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="w-10 h-11 flex items-center justify-center border-l border-[#dbe7f5] text-[#0080ff] hover:text-[#0055ff] transition shrink-0"
+                    onClick={() => setEmail('')}
+                    className="w-8 h-11 flex items-center justify-center text-slate-400 hover:text-rose-500 transition mr-1"
                   >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    <span className="w-4 h-4 rounded-full bg-rose-400 text-white text-[10px] flex items-center justify-center font-bold">
+                      <X className="w-3 h-3" />
+                    </span>
                   </button>
-                </div>
-                <div className="text-[10px] text-[#8ea4bf] ml-3 mt-1 flex items-center justify-between">
-                  <span>Standard test: Password@123</span>
-                  <span className="font-mono text-slate-500">Min 8 characters</span>
-                </div>
-              </div>
-
-              {/* Checkbox Row (Matching Green Check in Screenshot) */}
-              <div className="pt-1">
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <div
-                    onClick={() => setAgreeTerms(!agreeTerms)}
-                    className={`w-5 h-5 rounded-full flex items-center justify-center transition-all ${
-                      agreeTerms
-                        ? 'bg-emerald-500 text-white shadow-xs'
-                        : 'border-2 border-slate-300 hover:border-slate-400'
-                    }`}
-                  >
-                    {agreeTerms && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                  </div>
-                  <span className="text-xs text-[#35527a] font-medium">
-                    I acknowledge <span className="font-bold text-[#0077ff] underline cursor-pointer">21 CFR Part 11</span> electronic audit terms
-                  </span>
-                </label>
-              </div>
-
-              {/* Error Message */}
-              {errorMessage && (
-                <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 text-xs flex items-start gap-2 animate-in fade-in">
-                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>{errorMessage}</span>
-                </div>
-              )}
-
-              {/* Lockout Warning */}
-              {lockoutRemaining > 0 && (
-                <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-700 text-xs flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <Lock className="w-4 h-4 text-amber-600" />
-                    <span>Locked: {Math.floor(lockoutRemaining / 60)}m {lockoutRemaining % 60}s</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={resetLockout}
-                    className="px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 text-[10px] font-bold"
-                  >
-                    Override
-                  </button>
-                </div>
-              )}
-
-              {/* Action Button (Vivid Blue to Cyan Gradient Pill from Screenshot) */}
-              <button
-                type="submit"
-                disabled={isSubmitting || lockoutRemaining > 0}
-                className="w-full py-3.5 rounded-full text-white font-bold text-sm bg-gradient-to-r from-[#0055ff] via-[#0077ff] to-[#00d4ff] hover:opacity-95 shadow-lg shadow-blue-500/25 transition transform active:scale-[0.99] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed mt-2"
-              >
-                {isSubmitting ? (
-                  <>Verifying Credentials...</>
-                ) : (
-                  <>
-                    Sign In
-                    <ArrowRight className="w-4 h-4" />
-                  </>
                 )}
-              </button>
-            </form>
+              </div>
+              <div className="text-[10px] text-[#8ea4bf] ml-3 mt-1">
+                {activeTab === 'superadmin' ? 'Platform management credential' : 'Corporate employee directory address'}
+              </div>
+            </div>
+
+            {/* Field 3: Password (Pill style with lock icon on left and toggle on right) */}
+            <div>
+              <label className="text-xs font-bold text-[#0d3b75] ml-3 mb-1.5 block">
+                Password
+              </label>
+              <div className="relative flex items-center bg-[#f7faff] border border-[#d2e2f3] rounded-full overflow-hidden focus-within:border-[#0088ff] focus-within:ring-2 focus-within:ring-[#0088ff]/20">
+                <div className="w-11 h-11 flex items-center justify-center border-r border-[#dbe7f5] text-[#0080ff] shrink-0">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  className="flex-1 bg-transparent px-3.5 py-2.5 text-xs text-[#0d3b75] font-medium placeholder:text-[#9ab1ce] focus:outline-none"
+                />
+
+                {password && (
+                  <button
+                    type="button"
+                    onClick={() => setPassword('')}
+                    className="w-6 h-11 flex items-center justify-center text-slate-400 hover:text-rose-500 transition"
+                  >
+                    <span className="w-4 h-4 rounded-full bg-rose-400 text-white text-[10px] flex items-center justify-center font-bold">
+                      <X className="w-3 h-3" />
+                    </span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="w-10 h-11 flex items-center justify-center border-l border-[#dbe7f5] text-[#0080ff] hover:text-[#0055ff] transition shrink-0"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              <div className="text-[10px] text-[#8ea4bf] ml-3 mt-1 flex items-center justify-between">
+                <span>Standard test: Password@123</span>
+                <span className="font-mono text-slate-500">Min 8 characters</span>
+              </div>
+            </div>
+
+            {/* Checkbox Row (Matching Green Check in Screenshot) */}
+            <div className="pt-1">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <div
+                  onClick={() => setAgreeTerms(!agreeTerms)}
+                  className={`w-5 h-5 rounded-full flex items-center justify-center transition-all ${agreeTerms
+                    ? 'bg-emerald-500 text-white shadow-xs'
+                    : 'border-2 border-slate-300 hover:border-slate-400'
+                    }`}
+                >
+                  {agreeTerms && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                </div>
+                <span className="text-xs text-[#35527a] font-medium">
+                  I acknowledge <span className="font-bold text-[#0077ff] underline cursor-pointer">21 CFR Part 11</span> electronic audit terms
+                </span>
+              </label>
+            </div>
+
+            {/* Error Message */}
+            {errorMessage && (
+              <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 text-xs flex items-start gap-2 animate-in fade-in">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
+
+            {/* Lockout Warning */}
+            {lockoutRemaining > 0 && (
+              <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-700 text-xs flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Lock className="w-4 h-4 text-amber-600" />
+                  <span>Locked: {Math.floor(lockoutRemaining / 60)}m {lockoutRemaining % 60}s</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleOverrideUnlock}
+                  className="px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 text-[10px] font-bold hover:bg-amber-300 transition"
+                  title="21 CFR Part 11 Admin Override: Reset Database & Client Lockout"
+                >
+                  Override
+                </button>
+              </div>
+            )}
+
+            {/* Action Button (Vivid Blue to Cyan Gradient Pill from Screenshot) */}
+            <button
+              type="submit"
+              disabled={isSubmitting || lockoutRemaining > 0}
+              className="w-full py-3.5 rounded-full text-white font-bold text-sm bg-gradient-to-r from-[#0055ff] via-[#0077ff] to-[#00d4ff] hover:opacity-95 shadow-lg shadow-blue-500/25 transition transform active:scale-[0.99] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+            >
+              {isSubmitting ? (
+                <>Verifying Credentials...</>
+              ) : (
+                <>
+                  Sign In
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </form>
 
           {/* 1-Click Fast Demo Login Matrix (Matching Light UI) */}
           <div className="mt-6 pt-5 border-t border-[#e2edfa]">
