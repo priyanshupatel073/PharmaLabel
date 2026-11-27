@@ -719,11 +719,10 @@ export const UserSecurityHubPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveTab('users')}
-            className={`flex items-center gap-2 px-5 py-2.5 text-xs font-bold rounded-t-lg transition border-t border-l border-r ${
-              activeTab === 'users'
+            className={`flex items-center gap-2 px-5 py-2.5 text-xs font-bold rounded-t-lg transition border-t border-l border-r ${activeTab === 'users'
                 ? 'bg-white text-[#0d3b75] border-slate-200 border-b-white -mb-px shadow-xs'
                 : 'bg-transparent text-slate-500 border-transparent hover:text-slate-800'
-            }`}
+              }`}
           >
             <Users className="w-4 h-4 text-[#0088ff]" />
             User Management
@@ -732,11 +731,10 @@ export const UserSecurityHubPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveTab('roles')}
-            className={`flex items-center gap-2 px-5 py-2.5 text-xs font-bold rounded-t-lg transition border-t border-l border-r ${
-              activeTab === 'roles'
+            className={`flex items-center gap-2 px-5 py-2.5 text-xs font-bold rounded-t-lg transition border-t border-l border-r ${activeTab === 'roles'
                 ? 'bg-white text-[#0d3b75] border-slate-200 border-b-white -mb-px shadow-xs'
                 : 'bg-transparent text-slate-500 border-transparent hover:text-slate-800'
-            }`}
+              }`}
           >
             <Shield className="w-4 h-4 text-[#0088ff]" />
             Role Permissions
@@ -745,11 +743,10 @@ export const UserSecurityHubPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveTab('security')}
-            className={`flex items-center gap-2 px-5 py-2.5 text-xs font-bold rounded-t-lg transition border-t border-l border-r ${
-              activeTab === 'security'
+            className={`flex items-center gap-2 px-5 py-2.5 text-xs font-bold rounded-t-lg transition border-t border-l border-r ${activeTab === 'security'
                 ? 'bg-white text-[#0d3b75] border-slate-200 border-b-white -mb-px shadow-xs'
                 : 'bg-transparent text-slate-500 border-transparent hover:text-slate-800'
-            }`}
+              }`}
           >
             <KeyRound className="w-4 h-4 text-[#0088ff]" />
             Security Policy
@@ -758,11 +755,10 @@ export const UserSecurityHubPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveTab('smtp')}
-            className={`flex items-center gap-2 px-5 py-2.5 text-xs font-bold rounded-t-lg transition border-t border-l border-r ${
-              activeTab === 'smtp'
+            className={`flex items-center gap-2 px-5 py-2.5 text-xs font-bold rounded-t-lg transition border-t border-l border-r ${activeTab === 'smtp'
                 ? 'bg-white text-[#0d3b75] border-slate-200 border-b-white -mb-px shadow-xs'
                 : 'bg-transparent text-slate-500 border-transparent hover:text-slate-800'
-            }`}
+              }`}
           >
             <Mail className="w-4 h-4 text-[#0088ff]" />
             E-Mail / SMTP
@@ -809,13 +805,12 @@ export const UserSecurityHubPage: React.FC = () => {
                     {roles.map(r => (
                       <th
                         key={r.name}
-                        className={`py-2.5 px-4 text-center font-bold border-r border-[#1a3d69] last:border-r-0 ${
-                          r.name === 'Admin'
+                        className={`py-2.5 px-4 text-center font-bold border-r border-[#1a3d69] last:border-r-0 ${r.name === 'Admin'
                             ? 'bg-[#0b2b52]'
                             : r.name === 'Supervisor'
-                            ? 'bg-[#1b508c]'
-                            : 'bg-[#2b6ba8]'
-                        }`}
+                              ? 'bg-[#1b508c]'
+                              : 'bg-[#2b6ba8]'
+                          }`}
                       >
                         <div className="flex items-center justify-center gap-1">
                           <span>{r.name}</span>
@@ -859,11 +854,10 @@ export const UserSecurityHubPage: React.FC = () => {
                                 <button
                                   type="button"
                                   onClick={() => togglePermission(r.name, item.key)}
-                                  className={`w-4 h-4 rounded-xs border flex items-center justify-center mx-auto transition ${
-                                    isChecked
+                                  className={`w-4 h-4 rounded-xs border flex items-center justify-center mx-auto transition ${isChecked
                                       ? 'bg-slate-900 border-slate-900 text-white'
                                       : 'border-slate-300 hover:border-slate-400 bg-white'
-                                  }`}
+                                    }`}
                                 >
                                   {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
                                 </button>
@@ -1002,9 +996,8 @@ export const UserSecurityHubPage: React.FC = () => {
                         <tr
                           key={u.id}
                           onClick={() => setSelectedUserId(u.id)}
-                          className={`border-b border-slate-100 cursor-pointer transition select-none ${
-                            isSelected ? 'bg-blue-50/90 font-semibold' : 'hover:bg-slate-50/70'
-                          }`}
+                          className={`border-b border-slate-100 cursor-pointer transition select-none ${isSelected ? 'bg-blue-50/90 font-semibold' : 'hover:bg-slate-50/70'
+                            }`}
                         >
                           <td className="py-2.5 px-3 text-center text-slate-500 border-r border-slate-100">
                             {idx + 1}
@@ -1030,11 +1023,10 @@ export const UserSecurityHubPage: React.FC = () => {
                             </span>
                           </td>
                           <td className="py-2.5 px-3 text-center border-r border-slate-100">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              u.status === 'ACTIVE'
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${u.status === 'ACTIVE'
                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                 : 'bg-rose-50 text-rose-700 border border-rose-200'
-                            }`}>
+                              }`}>
                               {u.status === 'ACTIVE' ? 'Active' : u.status}
                             </span>
                           </td>
@@ -1122,11 +1114,10 @@ export const UserSecurityHubPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setSecurityPolicy({ ...securityPolicy, require_uppercase: !securityPolicy.require_uppercase })}
-                  className={`w-4 h-4 rounded-xs border flex items-center justify-center transition ${
-                    securityPolicy.require_uppercase
+                  className={`w-4 h-4 rounded-xs border flex items-center justify-center transition ${securityPolicy.require_uppercase
                       ? 'bg-slate-900 border-slate-900 text-white'
                       : 'border-slate-300 bg-white'
-                  }`}
+                    }`}
                 >
                   {securityPolicy.require_uppercase && <Check className="w-3 h-3 stroke-[3]" />}
                 </button>
@@ -1138,11 +1129,10 @@ export const UserSecurityHubPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setSecurityPolicy({ ...securityPolicy, require_numeric: !securityPolicy.require_numeric })}
-                  className={`w-4 h-4 rounded-xs border flex items-center justify-center transition ${
-                    securityPolicy.require_numeric
+                  className={`w-4 h-4 rounded-xs border flex items-center justify-center transition ${securityPolicy.require_numeric
                       ? 'bg-slate-900 border-slate-900 text-white'
                       : 'border-slate-300 bg-white'
-                  }`}
+                    }`}
                 >
                   {securityPolicy.require_numeric && <Check className="w-3 h-3 stroke-[3]" />}
                 </button>
@@ -1154,11 +1144,10 @@ export const UserSecurityHubPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setSecurityPolicy({ ...securityPolicy, require_special: !securityPolicy.require_special })}
-                  className={`w-4 h-4 rounded-xs border flex items-center justify-center transition ${
-                    securityPolicy.require_special
+                  className={`w-4 h-4 rounded-xs border flex items-center justify-center transition ${securityPolicy.require_special
                       ? 'bg-slate-900 border-slate-900 text-white'
                       : 'border-slate-300 bg-white'
-                  }`}
+                    }`}
                 >
                   {securityPolicy.require_special && <Check className="w-3 h-3 stroke-[3]" />}
                 </button>
@@ -1313,11 +1302,10 @@ export const UserSecurityHubPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setSmtpSettings({ ...smtpSettings, use_tls: !smtpSettings.use_tls })}
-                    className={`w-4 h-4 rounded-xs border flex items-center justify-center transition ${
-                      smtpSettings.use_tls
+                    className={`w-4 h-4 rounded-xs border flex items-center justify-center transition ${smtpSettings.use_tls
                         ? 'bg-slate-900 border-slate-900 text-white'
                         : 'border-slate-300 bg-white'
-                    }`}
+                      }`}
                   >
                     {smtpSettings.use_tls && <Check className="w-3 h-3 stroke-[3]" />}
                   </button>
@@ -1594,22 +1582,20 @@ export const UserSecurityHubPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setNewUserForm({ ...newUserForm, passwordMode: 'auto' })}
-                      className={`py-2 px-3 rounded-lg border font-bold text-left transition ${
-                        newUserForm.passwordMode === 'auto'
+                      className={`py-2 px-3 rounded-lg border font-bold text-left transition ${newUserForm.passwordMode === 'auto'
                           ? 'bg-blue-50 border-blue-300 text-blue-900'
                           : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                      }`}
+                        }`}
                     >
                       Auto-Generate Secure Temp Pass
                     </button>
                     <button
                       type="button"
                       onClick={() => setNewUserForm({ ...newUserForm, passwordMode: 'manual' })}
-                      className={`py-2 px-3 rounded-lg border font-bold text-left transition ${
-                        newUserForm.passwordMode === 'manual'
+                      className={`py-2 px-3 rounded-lg border font-bold text-left transition ${newUserForm.passwordMode === 'manual'
                           ? 'bg-blue-50 border-blue-300 text-blue-900'
                           : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                      }`}
+                        }`}
                     >
                       Manually Set Password
                     </button>
@@ -2092,11 +2078,10 @@ export const UserSecurityHubPage: React.FC = () => {
                                   }
                                 }));
                               }}
-                              className={`w-4 h-4 rounded-xs border flex items-center justify-center mx-auto transition ${
-                                adv.can_download_label_copy
+                              className={`w-4 h-4 rounded-xs border flex items-center justify-center mx-auto transition ${adv.can_download_label_copy
                                   ? 'bg-blue-600 border-blue-600 text-white'
                                   : 'border-slate-300 bg-white'
-                              }`}
+                                }`}
                             >
                               {adv.can_download_label_copy && <Check className="w-3 h-3 stroke-[3]" />}
                             </button>
@@ -2113,11 +2098,10 @@ export const UserSecurityHubPage: React.FC = () => {
                                   }
                                 }));
                               }}
-                              className={`w-4 h-4 rounded-xs border flex items-center justify-center mx-auto transition ${
-                                adv.can_export_labels
+                              className={`w-4 h-4 rounded-xs border flex items-center justify-center mx-auto transition ${adv.can_export_labels
                                   ? 'bg-emerald-600 border-emerald-600 text-white'
                                   : 'border-slate-300 bg-white'
-                              }`}
+                                }`}
                             >
                               {adv.can_export_labels && <Check className="w-3 h-3 stroke-[3]" />}
                             </button>

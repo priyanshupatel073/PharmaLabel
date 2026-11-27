@@ -811,6 +811,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       newValue?: string;
       reason?: string;
       outcome?: 'SUCCESS' | 'FAILED';
+      workstation?: string;
     }
   ) => {
     const now = new Date();
@@ -830,7 +831,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       oldValue: details?.oldValue,
       newValue: details?.newValue,
       reason: details?.reason || 'Standard operational procedure',
-      outcome: details?.outcome || 'SUCCESS'
+      outcome: details?.outcome || 'SUCCESS',
+      workstation: details?.workstation || 'WS-LINE02-PACKAGING (127.0.0.1)'
     };
     setAuditLogs((prev) => [newLog, ...prev]);
   };
@@ -1374,9 +1376,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const exportAuditTrailCsv = () => {
-    const headers = ['Timestamp', 'User', 'Role', 'Action', 'Module', 'Batch Ref', 'Drum Ref', 'SSCC', 'Old Value', 'New Value', 'Reason', 'Outcome'];
+    const headers = ['Timestamp', 'Workstation', 'User', 'Role', 'Action', 'Module', 'Batch Ref', 'Drum Ref', 'SSCC', 'Old Value', 'New Value', 'Reason', 'Outcome'];
     const rows = auditLogs.map((log) => [
       `"${log.timestamp}"`,
+      `"${log.workstation || 'WS-LINE02-PACKAGING (127.0.0.1)'}"`,
       `"${log.userName}"`,
       `"${log.userRole}"`,
       `"${log.action}"`,
