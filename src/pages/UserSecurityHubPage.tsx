@@ -30,7 +30,7 @@ interface AdvancePermissionsMap {
 }
 
 export const UserSecurityHubPage: React.FC = () => {
-  const { currentUser, currentOrganization, updateRolePermissions, refreshRolePermissions } = useApp();
+  const { currentUser, currentOrganization, updateRolePermissions, refreshRolePermissions, updateSecurityPolicy } = useApp();
 
   const [activeTab, setActiveTab] = useState<HubTab>('roles');
   const [loading, setLoading] = useState(false);
@@ -213,6 +213,7 @@ export const UserSecurityHubPage: React.FC = () => {
         const data = await secRes.json();
         if (data.success && data.data) {
           setSecurityPolicy(data.data);
+          updateSecurityPolicy(data.data);
         }
       }
 
@@ -498,7 +499,13 @@ export const UserSecurityHubPage: React.FC = () => {
       });
       const data = await res.json();
       if (data.success) {
-        showToast('21 CFR Part 11 security policy saved.');
+        if (data.data) {
+          setSecurityPolicy(data.data);
+          updateSecurityPolicy(data.data);
+        } else {
+          updateSecurityPolicy(securityPolicy);
+        }
+        showToast('21 CFR Part 11 security policy saved and activated system-wide.');
       } else {
         setErrorMessage(data.message || 'Failed to save security policy.');
       }

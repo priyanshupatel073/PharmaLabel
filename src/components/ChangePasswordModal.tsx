@@ -24,7 +24,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
   onClose,
   mandatory = false
 }) => {
-  const { currentUser, login, logAudit } = useApp();
+  const { currentUser, login, logAudit, securityPolicy } = useApp();
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -38,12 +38,17 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Validation checks (US FDA 21 CFR Part 11 §11.200)
-  const hasMinLength = newPassword.length >= 8;
-  const hasUpper = /[A-Z]/.test(newPassword);
+  // Dynamic Validation checks based on Plant Admin Security Policy (US FDA 21 CFR Part 11 §11.200)
+  const minLen = securityPolicy?.min_password_length || 8;
+  const reqUpper = securityPolicy?.require_uppercase ?? true;
+  const reqNum = securityPolicy?.require_numeric ?? true;
+  const reqSpec = securityPolicy?.require_special ?? false;
+
+  const hasMinLength = newPassword.length >= minLen;
+  const hasUpper = !reqUpper || /[A-Z]/.test(newPassword);
   const hasLower = /[a-z]/.test(newPassword);
-  const hasNumber = /[0-9]/.test(newPassword);
-  const hasSpecial = /[!@#$%^&*()\-_=+\[\]{};:,.<>?]/.test(newPassword);
+  const hasNumber = !reqNum || /[0-9]/.test(newPassword);
+  const hasSpecial = !reqSpec || /[!@#$%^&*()\-_=+\[\]{};:,.<>?]/.test(newPassword);
   const passwordsMatch = newPassword.length > 0 && newPassword === confirmPassword;
   const isFormValid = hasMinLength && hasUpper && hasLower && hasNumber && hasSpecial && passwordsMatch;
 
@@ -250,20 +255,24 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
                 <div className="grid grid-cols-2 gap-x-2 gap-y-1">
                   <div className={`flex items-center gap-1.5 ${hasMinLength ? 'text-emerald-700 font-bold' : 'text-slate-500'}`}>
                     <Check className={`w-3.5 h-3.5 ${hasMinLength ? 'text-emerald-600' : 'text-slate-300'}`} />
-                    <span>8+ Characters</span>
+                    <span>{minLen}+ Characters</span>
                   </div>
                   <div className={`flex items-center gap-1.5 ${hasUpper && hasLower ? 'text-emerald-700 font-bold' : 'text-slate-500'}`}>
                     <Check className={`w-3.5 h-3.5 ${hasUpper && hasLower ? 'text-emerald-600' : 'text-slate-300'}`} />
-                    <span>Upper & Lowercase</span>
+                    <span>{reqUpper ? 'Upper & Lowercase' : 'Lowercase (a-z)'}</span>
                   </div>
-                  <div className={`flex items-center gap-1.5 ${hasNumber ? 'text-emerald-700 font-bold' : 'text-slate-500'}`}>
-                    <Check className={`w-3.5 h-3.5 ${hasNumber ? 'text-emerald-600' : 'text-slate-300'}`} />
-                    <span>Number (0-9)</span>
-                  </div>
-                  <div className={`flex items-center gap-1.5 ${hasSpecial ? 'text-emerald-700 font-bold' : 'text-slate-500'}`}>
-                    <Check className={`w-3.5 h-3.5 ${hasSpecial ? 'text-emerald-600' : 'text-slate-300'}`} />
-                    <span>Special Symbol (!@#$)</span>
-                  </div>
+                  {reqNum && (
+                    <div className={`flex items-center gap-1.5 ${hasNumber ? 'text-emerald-700 font-bold' : 'text-slate-500'}`}>
+                      <Check className={`w-3.5 h-3.5 ${hasNumber ? 'text-emerald-600' : 'text-slate-300'}`} />
+                      <span>Number (0-9)</span>
+                    </div>
+                  )}
+                  {reqSpec && (
+                    <div className={`flex items-center gap-1.5 ${hasSpecial ? 'text-emerald-700 font-bold' : 'text-slate-500'}`}>
+                      <Check className={`w-3.5 h-3.5 ${hasSpecial ? 'text-emerald-600' : 'text-slate-300'}`} />
+                      <span>Special Symbol (!@#$)</span>
+                    </div>
+                  )}
                 </div>
                 {newPassword && confirmPassword && (
                   <div className={`pt-1 border-t border-slate-200/60 flex items-center gap-1.5 ${passwordsMatch ? 'text-emerald-700 font-bold' : 'text-rose-600'}`}>

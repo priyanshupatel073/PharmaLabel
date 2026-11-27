@@ -198,6 +198,32 @@ try {
 
     $now = time();
 
+    // Fetch dynamic 21 CFR Part 11 policy thresholds from organization security settings
+    $secPolicy = [
+        'max_failed_attempts'    => 10,
+        'lockout_duration_min'   => 5,
+        'min_password_length'    => 8,
+        'require_uppercase'      => 1,
+        'require_numeric'        => 1,
+        'require_special'        => 0,
+        'password_expiry_days'   => 90,
+        'password_reuse_blocked' => 5,
+        'session_timeout_min'    => 60
+    ];
+    if (!empty($user['organization_id'])) {
+        $stmtSec = $pdo->prepare("SELECT * FROM `security_policies` WHERE organization_id = :org_id LIMIT 1");
+        $stmtSec->execute([':org_id' => $user['organization_id']]);
+        $rowSec = $stmtSec->fetch(PDO::FETCH_ASSOC);
+        if ($rowSec) {
+            $secPolicy = array_merge($secPolicy, $rowSec);
+        }
+    }
+    $maxAttempts        = (int)($secPolicy['max_failed_attempts'] ?? 10);
+    $lockoutMin         = (int)($secPolicy['lockout_duration_min'] ?? 5);
+    $sessionTimeoutMin  = (int)($secPolicy['session_timeout_min'] ?? 60);
+    $passwordExpiryDays = (int)($secPolicy['password_expiry_days'] ?? 90);
+    $lockoutSeconds     = $lockoutMin * 60;
+
     // 2. Check if account is currently locked out
     if (!empty($user['locked_until'])) {
         $lockedTimestamp = strtotime($user['locked_until']);
@@ -212,7 +238,7 @@ try {
             ], $user['organization_id'], $user);
 
             sendError(
-                "Account is locked due to 5 consecutive failed login attempts. Please wait {$mins} minute(s) ({$secondsRemaining}s remaining).",
+                "Account is locked due to {$maxAttempts} consecutive failed login attempts. Please wait {$mins} minute(s) ({$secondsRemaining}s remaining).",
                 403,
                 [
                     'locked' => true,
@@ -233,20 +259,6 @@ try {
 
     if (!$passwordValid) {
         $nextAttempts = (int)$user['failed_login_attempts'] + 1;
-
-        // Dynamic 21 CFR Part 11 policy thresholds from organization security settings
-        $maxAttempts = 5;
-        $lockoutMin = 15;
-        if (!empty($user['organization_id'])) {
-            $stmtSec = $pdo->prepare("SELECT max_failed_attempts, lockout_duration_min FROM `security_policies` WHERE organization_id = :org_id LIMIT 1");
-            $stmtSec->execute([':org_id' => $user['organization_id']]);
-            $sec = $stmtSec->fetch(PDO::FETCH_ASSOC);
-            if ($sec) {
-                $maxAttempts = (int)($sec['max_failed_attempts'] ?? 5);
-                $lockoutMin  = (int)($sec['lockout_duration_min'] ?? 15);
-            }
-        }
-        $lockoutSeconds = $lockoutMin * 60;
 
         if ($nextAttempts >= $maxAttempts) {
             // Lock out account
@@ -308,8 +320,9 @@ try {
 
     // 5. Tenant License is already verified in Step 2
 
-    // 6. Generate Cryptographic Bearer Token (60-minute inactivity timeout)
-    $token = generateToken($user, 3600);
+    // 6. Generate Cryptographic Bearer Token with Dynamic Inactivity Timeout
+    $tokenTtl = max(300, $sessionTimeoutMin * 60);
+    $token = generateToken($user, $tokenTtl);
 
     // 7. 21 CFR Part 11 Audit Trail Record
     logAuditTrail($pdo, 'USER_LOGIN', 'Authentication', [
@@ -334,14 +347,25 @@ try {
         }
     }
 
-    // 9. Return Success Payload to Frontend (Only newly onboarded client plant users require first-login password change)
+    // 9. Evaluate password expiration and mandatory change
     $isNewlyOnboardedClient = ($user['role'] !== 'SuperAdmin')
         && !empty($user['organization_id'])
         && empty($user['password_changed_at']);
 
+    $isPasswordExpired = false;
+    if ($passwordExpiryDays > 0 && !empty($user['password_changed_at'])) {
+        $daysSinceChanged = (time() - strtotime($user['password_changed_at'])) / 86400;
+        if ($daysSinceChanged >= $passwordExpiryDays) {
+            $isPasswordExpired = true;
+        }
+    }
+
+    $mustChange = ($user['role'] !== 'SuperAdmin') && ($isNewlyOnboardedClient || $isPasswordExpired);
+
     sendSuccess([
         'token'                => $token,
-        'must_change_password' => $isNewlyOnboardedClient,
+        'must_change_password' => $mustChange,
+        'password_expired'     => $isPasswordExpired,
         'user'                 => [
             'id'                   => $user['id'],
             'name'                 => $user['name'],
@@ -351,9 +375,20 @@ try {
             'organization_id'      => $user['organization_id'],
             'permissions'          => $userPermissions,
             'advance_permissions'  => $userAdvancePermissions,
-            'must_change_password' => $isNewlyOnboardedClient
+            'must_change_password' => $mustChange
         ],
-        'organization' => $tenantOrg
+        'organization'         => $tenantOrg,
+        'security_policy'      => [
+            'max_failed_attempts'    => $maxAttempts,
+            'lockout_duration_min'   => $lockoutMin,
+            'min_password_length'    => (int)($secPolicy['min_password_length'] ?? 8),
+            'require_uppercase'      => (bool)($secPolicy['require_uppercase'] ?? true),
+            'require_numeric'        => (bool)($secPolicy['require_numeric'] ?? true),
+            'require_special'        => (bool)($secPolicy['require_special'] ?? false),
+            'password_expiry_days'   => $passwordExpiryDays,
+            'password_reuse_blocked' => (int)($secPolicy['password_reuse_blocked'] ?? 5),
+            'session_timeout_min'    => $sessionTimeoutMin
+        ]
     ], 'Authentication successful. Session initialized.');
 
 } catch (PDOException $e) {

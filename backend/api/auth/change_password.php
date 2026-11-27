@@ -6,6 +6,7 @@
  * Handles:
  *   1. Mandatory First-Login Temporary Password Change for New Tenants
  *   2. Ongoing voluntary user password changes per 21 CFR Part 11 §11.200
+ *   3. Dynamic Security Policy Enforcement (Complexity, Expiry, History Reuse)
  * ============================================================================
  */
 
@@ -42,11 +43,11 @@ if (preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
 }
 
 if (empty($email) && empty($userId) && $tokenUser) {
-    $userId = $tokenUser['sub'] ?? '';
-    $email = $tokenUser['email'] ?? '';
+    $userId = (string)($tokenUser['sub'] ?? '');
+    $email = (string)($tokenUser['email'] ?? '');
 }
 
-// Validations
+// Basic input presence checks
 $validationErrors = [];
 if (empty($email) && empty($userId)) {
     $validationErrors['user'] = 'User identification (email or ID) is required.';
@@ -58,33 +59,14 @@ if ($newPassword !== $confirmPassword) {
     $validationErrors['confirm_password'] = 'New password and confirmation password do not match.';
 }
 
-// 21 CFR Part 11 Password Complexity Enforcement
-if (!empty($newPassword)) {
-    if (strlen($newPassword) < 8) {
-        $validationErrors['complexity'] = 'Password must be at least 8 characters in length.';
-    } elseif (!preg_match('/[A-Z]/', $newPassword)) {
-        $validationErrors['complexity'] = 'Password must contain at least one uppercase letter (A-Z).';
-    } elseif (!preg_match('/[a-z]/', $newPassword)) {
-        $validationErrors['complexity'] = 'Password must contain at least one lowercase letter (a-z).';
-    } elseif (!preg_match('/[0-9]/', $newPassword)) {
-        $validationErrors['complexity'] = 'Password must contain at least one numeric digit (0-9).';
-    } elseif (!preg_match('/[!@#$%^&*()\-_=+\[\]{};:,.<>?]/', $newPassword)) {
-        $validationErrors['complexity'] = 'Password must contain at least one special character (!@#$%^&*...).';
-    }
-}
-
 if (!empty($validationErrors)) {
     sendValidationError($validationErrors, 'Password validation failed.');
-}
-
-if (!empty($currentPassword) && $currentPassword === $newPassword) {
-    sendError('New permanent password cannot be identical to the temporary password.', 422);
 }
 
 try {
     $pdo = getDbConnection();
 
-    // Look up user
+    // Look up user first to retrieve organization security policy
     if (!empty($userId)) {
         $stmt = $pdo->prepare("SELECT * FROM `users` WHERE id = :id LIMIT 1");
         $stmt->execute([':id' => $userId]);
@@ -99,13 +81,53 @@ try {
         sendError('User account not found.', 404);
     }
 
+    // Retrieve organization security policy
+    $policy = [
+        'min_password_length'    => 8,
+        'require_uppercase'      => 1,
+        'require_numeric'        => 1,
+        'require_special'        => 0,
+        'password_reuse_blocked' => 5,
+        'session_timeout_min'    => 60
+    ];
+
+    if (!empty($user['organization_id'])) {
+        $stmtSec = $pdo->prepare("SELECT min_password_length, require_uppercase, require_numeric, require_special, password_reuse_blocked, session_timeout_min FROM `security_policies` WHERE organization_id = :org_id LIMIT 1");
+        $stmtSec->execute([':org_id' => $user['organization_id']]);
+        $secRow = $stmtSec->fetch(PDO::FETCH_ASSOC);
+        if ($secRow) {
+            $policy = array_merge($policy, $secRow);
+        }
+    }
+
+    // Dynamic 21 CFR Part 11 Password Complexity Enforcement
+    $minLen = (int)($policy['min_password_length'] ?? 8);
+    $reqUpper = !empty($policy['require_uppercase']);
+    $reqNum = !empty($policy['require_numeric']);
+    $reqSpec = !empty($policy['require_special']);
+
+    if (strlen($newPassword) < $minLen) {
+        $validationErrors['complexity'] = "Password must be at least {$minLen} characters in length.";
+    } elseif ($reqUpper && !preg_match('/[A-Z]/', $newPassword)) {
+        $validationErrors['complexity'] = 'Password must contain at least one uppercase letter (A-Z).';
+    } elseif (!preg_match('/[a-z]/', $newPassword)) {
+        $validationErrors['complexity'] = 'Password must contain at least one lowercase letter (a-z).';
+    } elseif ($reqNum && !preg_match('/[0-9]/', $newPassword)) {
+        $validationErrors['complexity'] = 'Password must contain at least one numeric digit (0-9).';
+    } elseif ($reqSpec && !preg_match('/[!@#$%^&*()\-_=+\[\]{};:,.<>?]/', $newPassword)) {
+        $validationErrors['complexity'] = 'Password must contain at least one special character (!@#$%^&*...).';
+    }
+
+    if (!empty($validationErrors)) {
+        sendValidationError($validationErrors, 'Password validation failed against company security policy.');
+    }
+
     // Verify current password if provided, or verify authenticated session context
     if (!empty($currentPassword)) {
         if (!password_verify($currentPassword, $user['password_hash'])) {
             sendError('Current password entered is incorrect.', 401);
         }
     } else {
-        // When setting permanent password from an active authenticated session without re-entering temporary password:
         $isAuthUser = $tokenUser && (
             ($tokenUser['sub'] ?? '') === $user['id'] ||
             strtolower((string)($tokenUser['email'] ?? '')) === strtolower((string)$user['email'])
@@ -113,16 +135,32 @@ try {
         $isFirstLogin = empty($user['password_changed_at']);
 
         if (!$isAuthUser && !$isFirstLogin) {
-            sendError('Authentication required or temporary password must be provided.', 401);
+            sendError('Authentication required or current password must be provided.', 401);
         }
     }
 
-    // Ensure new password is not identical to current temporary password
+    // Ensure new password is not identical to current password
     if (password_verify($newPassword, $user['password_hash'])) {
-        sendError('New permanent password cannot be identical to your temporary password.', 422);
+        sendError('New permanent password cannot be identical to your current password.', 422);
     }
 
-    // Hash new password using bcrypt
+    // Password Reuse Prevention (Check last N blocked passwords)
+    $reuseBlocked = (int)($policy['password_reuse_blocked'] ?? 5);
+    if ($reuseBlocked > 0) {
+        $stmtHist = $pdo->prepare("SELECT password_hash FROM `password_history` WHERE user_id = :uid ORDER BY created_at DESC LIMIT :limit");
+        $stmtHist->bindValue(':uid', (string)$user['id'], PDO::PARAM_STR);
+        $stmtHist->bindValue(':limit', $reuseBlocked, PDO::PARAM_INT);
+        $stmtHist->execute();
+        $pastHashes = $stmtHist->fetchAll(PDO::FETCH_COLUMN);
+
+        foreach ($pastHashes as $oldHash) {
+            if (password_verify($newPassword, $oldHash)) {
+                sendError("Password Reuse Prevention: You cannot reuse any of your last {$reuseBlocked} passwords per company security policy.", 422);
+            }
+        }
+    }
+
+    // Hash new password using secure bcrypt
     $newHash = password_hash($newPassword, PASSWORD_BCRYPT);
     $now = date('Y-m-d H:i:s');
 
@@ -144,23 +182,28 @@ try {
         ':id'         => $user['id']
     ]);
 
+    // Store in password history for reuse prevention
+    $histStmt = $pdo->prepare("INSERT INTO `password_history` (user_id, password_hash) VALUES (:uid, :hash)");
+    $histStmt->execute([
+        ':uid'  => (string)$user['id'],
+        ':hash' => $newHash
+    ]);
+
     // Mandatory 21 CFR Part 11 Audit Trail Record
     logAuditTrail($pdo, 'PASSWORD_CHANGED', 'Security & Access Control', [
-        'old_value' => 'Temporary Password / Previous Hash',
+        'old_value' => 'Previous Password Hash',
         'new_value' => 'Permanent Cryptographic Password Established',
-        'reason'    => empty($user['password_changed_at']) 
-            ? 'Mandatory first-login temporary password replacement completed.' 
-            : 'Voluntary periodic password credential rotation.',
+        'reason'    => 'User password update compliant with 21 CFR Part 11 §11.200',
         'outcome'   => 'SUCCESS'
-    ], $user['organization_id'], $user);
+    ], $user['organization_id'] ?? null, $user);
 
-    // Issue refreshed token
-    $refreshedToken = generateToken($user, 3600);
+    // Issue updated session token matching policy session timeout
+    $sessionTimeoutMin = (int)($policy['session_timeout_min'] ?? 60);
+    $newToken = generateToken($user, max(300, $sessionTimeoutMin * 60));
 
     sendSuccess([
-        'token'                => $refreshedToken,
+        'token'                => $newToken,
         'must_change_password' => false,
-        'password_changed_at'  => $now,
         'user' => [
             'id'                   => $user['id'],
             'name'                 => $user['name'],
@@ -170,9 +213,9 @@ try {
             'organization_id'      => $user['organization_id'],
             'must_change_password' => false
         ]
-    ], 'Permanent password successfully established! Your electronic signature credentials are now active.');
+    ], 'Password updated successfully. Cryptographic session initialized.');
 
 } catch (PDOException $e) {
-    error_log('[PharmaLabel Password Change Error] ' . $e->getMessage());
-    sendError('Database error while updating password: ' . $e->getMessage(), 500);
+    error_log('[PharmaLabel Change Password Error] ' . $e->getMessage());
+    sendError('Database error processing password change: ' . $e->getMessage(), 500);
 }

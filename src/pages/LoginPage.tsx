@@ -31,7 +31,8 @@ export const LoginPage: React.FC = () => {
     recordFailedLoginForEmail,
     triggerLockoutForEmail,
     clearLockoutForEmail,
-    resetAllLockouts
+    resetAllLockouts,
+    securityPolicy
   } = useApp();
 
   const navigate = useNavigate();
@@ -45,6 +46,36 @@ export const LoginPage: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [activeLockout, setActiveLockout] = useState<number>(0);
+  const [currentPolicy, setCurrentPolicy] = useState(securityPolicy || {
+    max_failed_attempts: 10,
+    lockout_duration_min: 5,
+    min_password_length: 8,
+    require_uppercase: true,
+    require_numeric: true,
+    require_special: false,
+    password_expiry_days: 90,
+    password_reuse_blocked: 5,
+    session_timeout_min: 60
+  });
+
+  useEffect(() => {
+    if (securityPolicy) {
+      setCurrentPolicy(securityPolicy);
+    }
+  }, [securityPolicy]);
+
+  useEffect(() => {
+    if (activeTab === 'company' && selectedOrgId) {
+      fetch(`/api/company/security_policy.php?organization_id=${encodeURIComponent(selectedOrgId)}`)
+        .then(res => res.json())
+        .then(json => {
+          if (json.success && json.data) {
+            setCurrentPolicy(json.data);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [selectedOrgId, activeTab]);
 
   // Check for prefilled credentials from SuperAdmin onboarding
   useEffect(() => {
@@ -81,7 +112,7 @@ export const LoginPage: React.FC = () => {
     const localRemaining = getLockoutRemainingForEmail(emailKey);
     if (localRemaining > 0) {
       setActiveLockout(localRemaining);
-      setErrorMessage(`Account (${email}) is locked due to 5 consecutive failed login attempts (${localRemaining}s remaining).`);
+      setErrorMessage(`Account (${email}) is locked due to ${currentPolicy.max_failed_attempts || 10} consecutive failed login attempts (${localRemaining}s remaining).`);
       return;
     } else {
       setActiveLockout(0);
@@ -251,7 +282,7 @@ export const LoginPage: React.FC = () => {
 
         const targetOrg = organizations.find(o => o.id === (res.data.organization?.id || selectedOrgId)) || organizations[0];
 
-        login(loggedInUser, activeTab === 'superadmin' ? undefined : targetOrg);
+        login(loggedInUser, activeTab === 'superadmin' ? undefined : targetOrg, res.data?.security_policy);
 
         if (loggedInUser.role === 'SuperAdmin') {
           navigate('/superadmin');
@@ -262,24 +293,29 @@ export const LoginPage: React.FC = () => {
         }
       } else {
         // Handle failed login
+        const maxAttempts = currentPolicy.max_failed_attempts || 10;
+        const lockoutMin = currentPolicy.lockout_duration_min || 5;
+        const lockoutSec = lockoutMin * 60;
+
         if (res.errors?.license_blocked || res.message?.includes('EXPIRED') || res.message?.includes('SUSPENDED')) {
           // Company license block -> do NOT count as password attempt!
           setErrorMessage(res.message);
         } else if (response.status === 403 && (res.errors?.locked || res.message?.includes('locked') || res.message?.includes('consecutive'))) {
           // Lockout triggered in database for this email!
-          const remainingSec = res.errors?.remaining_seconds || 900;
+          const remainingSec = res.errors?.remaining_seconds || lockoutSec;
           triggerLockoutForEmail(email, remainingSec);
           setActiveLockout(remainingSec);
           setErrorMessage(res.message);
         } else {
           // Increment attempt for THIS specific email
           const nextAttempts = recordFailedLoginForEmail(email);
-          if (nextAttempts >= 5) {
-            setActiveLockout(900);
-            setErrorMessage('Account locked out for 15 minutes due to 5 consecutive failed attempts.');
+          if (nextAttempts >= maxAttempts) {
+            triggerLockoutForEmail(email, lockoutSec);
+            setActiveLockout(lockoutSec);
+            setErrorMessage(res.message || `Account locked out for ${lockoutMin} minutes due to ${maxAttempts} consecutive failed attempts.`);
           } else {
-            const left = 5 - nextAttempts;
-            setErrorMessage(res.message || `Invalid credentials. ${left} attempt${left === 1 ? '' : 's'} remaining before 15-minute 21 CFR Part 11 account lockout.`);
+            const left = maxAttempts - nextAttempts;
+            setErrorMessage(res.message || `Invalid credentials. ${left} attempt${left === 1 ? '' : 's'} remaining before ${lockoutMin}-minute 21 CFR Part 11 account lockout.`);
           }
         }
       }
@@ -498,7 +534,7 @@ export const LoginPage: React.FC = () => {
               </div>
               <div className="text-[10px] text-[#8ea4bf] ml-3 mt-1 flex items-center justify-between">
                 <span>Standard test: Password@123</span>
-                <span className="font-mono text-slate-500">Min 8 characters</span>
+                <span className="font-mono text-slate-500">Min {currentPolicy.min_password_length || 8} characters</span>
               </div>
             </div>
 

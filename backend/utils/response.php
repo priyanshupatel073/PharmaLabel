@@ -78,6 +78,7 @@ function sendError(string $message, int $statusCode = 400, array $errors = [], b
         'success'   => false,
         'message'   => $message,
         'errors'    => $errors,
+        'data'      => $errors,
         'timestamp' => getIstTimestamp()
     ];
 

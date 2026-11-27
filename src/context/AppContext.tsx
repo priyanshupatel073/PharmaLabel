@@ -27,6 +27,32 @@ import {
 } from '../utils/mockData';
 import { generateSSCC } from '../utils/sscc';
 
+export interface SecurityPolicy {
+  organization_id?: string;
+  max_failed_attempts: number;
+  lockout_duration_min: number;
+  min_password_length: number;
+  require_uppercase: boolean;
+  require_numeric: boolean;
+  require_special: boolean;
+  password_expiry_days: number;
+  password_reuse_blocked: number;
+  session_timeout_min: number;
+  admin_alert_email?: string;
+}
+
+export const DEFAULT_SECURITY_POLICY: SecurityPolicy = {
+  max_failed_attempts: 10,
+  lockout_duration_min: 5,
+  min_password_length: 8,
+  require_uppercase: true,
+  require_numeric: true,
+  require_special: false,
+  password_expiry_days: 90,
+  password_reuse_blocked: 5,
+  session_timeout_min: 60
+};
+
 interface AppContextType {
   currentUser: User;
   users: User[];
@@ -45,9 +71,12 @@ interface AppContextType {
   currentOrganization: Organization;
   organizations: Organization[];
   refreshOrganizations: () => Promise<void>;
-  login: (user: User, org?: Organization) => void;
+  login: (user: User, org?: Organization, policy?: SecurityPolicy) => void;
   logout: () => void;
   sessionRemaining: number;
+  securityPolicy: SecurityPolicy;
+  updateSecurityPolicy: (policy: SecurityPolicy) => void;
+  refreshSecurityPolicy: (targetOrgId?: string) => Promise<void>;
   onboardOrganization: (org: Omit<Organization, 'id' | 'createdAt' | 'totalDrumsPrinted'>) => void;
   deleteOrganization: (orgId: string) => Promise<boolean>;
   updateOrganizationLicense: (orgId: string, status: Organization['licenseStatus'], validUntil?: string) => void;
@@ -299,20 +328,75 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     refreshOrganizations();
     refreshRolePermissions();
+    refreshSecurityPolicy();
   }, []);
 
   useEffect(() => {
     if (currentOrganization?.id) {
       refreshRolePermissions();
+      refreshSecurityPolicy(currentOrganization.id);
     }
   }, [currentOrganization?.id]);
+
+  const [securityPolicy, setSecurityPolicy] = useState<SecurityPolicy>(() => {
+    const saved = localStorage.getItem('pharmalabel_security_policy');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {}
+    }
+    return DEFAULT_SECURITY_POLICY;
+  });
+
+  const refreshSecurityPolicy = async (targetOrgId?: string) => {
+    try {
+      const orgId = targetOrgId || currentOrganization?.id;
+      if (!orgId || orgId === 'PLATFORM-CAMEL') return;
+      const token = localStorage.getItem('pharmalabel_token') || localStorage.getItem('token') || '';
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`/api/company/security_policy.php?organization_id=${encodeURIComponent(orgId)}`, {
+        headers
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          setSecurityPolicy(json.data);
+          localStorage.setItem('pharmalabel_security_policy', JSON.stringify(json.data));
+          if (json.data.session_timeout_min) {
+            setSessionRemaining(json.data.session_timeout_min * 60);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[AppContext] Failed to refresh security policy:', e);
+    }
+  };
+
+  const updateSecurityPolicy = (newPolicy: SecurityPolicy) => {
+    setSecurityPolicy(newPolicy);
+    localStorage.setItem('pharmalabel_security_policy', JSON.stringify(newPolicy));
+    if (newPolicy.session_timeout_min) {
+      setSessionRemaining(newPolicy.session_timeout_min * 60);
+    }
+  };
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     const saved = localStorage.getItem('pharmalabel_auth');
     return saved !== null ? saved === 'true' : true;
   });
 
-  const [sessionRemaining, setSessionRemaining] = useState<number>(3600);
+  const [sessionRemaining, setSessionRemaining] = useState<number>(() => {
+    const savedPolicy = localStorage.getItem('pharmalabel_security_policy');
+    if (savedPolicy) {
+      try {
+        const p = JSON.parse(savedPolicy);
+        if (p.session_timeout_min) return p.session_timeout_min * 60;
+      } catch {}
+    }
+    return 3600;
+  });
 
   const [generatedSnapshots, setGeneratedSnapshots] = useState<LabelSnapshot[]>(() => {
     const saved = localStorage.getItem('pharmalabel_snapshots');
@@ -431,7 +515,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const login = (user: User, org?: Organization) => {
+  const login = (user: User, org?: Organization, policy?: SecurityPolicy) => {
     const sanitizedUser: User = {
       ...user,
       mustChangePassword: user.role === 'SuperAdmin' ? false : !!user.mustChangePassword
@@ -453,8 +537,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createdAt: '2025-01-01'
       });
     }
+
+    if (policy) {
+      setSecurityPolicy(policy);
+      localStorage.setItem('pharmalabel_security_policy', JSON.stringify(policy));
+      setSessionRemaining((policy.session_timeout_min || 60) * 60);
+    } else {
+      setSessionRemaining((securityPolicy.session_timeout_min || 60) * 60);
+    }
+
     setIsAuthenticated(true);
-    setSessionRemaining(3600);
     resetLockout();
     logAudit('USER_LOGIN', 'Authentication', {
       newValue: `User ${user.name} logged in as ${user.role} [${org?.name || 'Platform SuperAdmin'}]`,
@@ -1348,6 +1440,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         login,
         logout,
         sessionRemaining,
+        securityPolicy,
+        updateSecurityPolicy,
+        refreshSecurityPolicy,
         onboardOrganization,
         deleteOrganization,
         updateOrganizationLicense,
