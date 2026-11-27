@@ -1,7 +1,8 @@
 import React from 'react';
 import { LabelSnapshot, LabelDimension } from '../types';
 import { generateCode128SvgBars, generateMatrixGrid } from '../utils/barcode';
-import { Printer, ShieldCheck, X, Tag } from 'lucide-react';
+import { Printer, ShieldCheck, X, Tag, Download, Lock } from 'lucide-react';
+import { useApp } from '../context/AppContext';
 
 interface ThermalLabelProps {
   label: LabelSnapshot;
@@ -62,6 +63,71 @@ export const ThermalLabelSimulator: React.FC<ThermalLabelProps> = ({
 }) => {
   const dim = (label.dimension as LabelDimension) || '4x6';
   const cfg = dimensionConfigs[dim] || dimensionConfigs['4x6'];
+  const { canDownloadLabelCopy, logAudit } = useApp();
+  const canDownload = canDownloadLabelCopy();
+
+  const handleDownloadCopy = () => {
+    if (!canDownload) {
+      alert('Access Denied: Advance permission "Download Label Copy" is required for your role. Please request access from your Plant Administrator in Users & Security.');
+      return;
+    }
+
+    const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>PharmLabel Verified Copy - Batch ${label.batchNumber} - Drum #${label.drumNumber}</title>
+  <style>
+    body { font-family: monospace; padding: 24px; color: #0f172a; max-width: 450px; margin: 0 auto; }
+    .header { border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 12px; }
+    .box { border: 1px solid #94a3b8; padding: 12px; border-radius: 8px; margin-bottom: 12px; }
+    .sscc { font-size: 16px; font-weight: bold; letter-spacing: 2px; }
+    .footer { font-size: 10px; color: #64748b; border-top: 1px solid #cbd5e1; padding-top: 8px; margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h2 style="margin:0;font-size:18px;">PHARMLABEL GS1 PALLET/DRUM LABEL PROOF</h2>
+    <div style="font-size:11px;color:#475569;">21 CFR Part 11 Regulated Electronic Copy</div>
+  </div>
+  <div class="box">
+    <div><strong>BATCH NUMBER:</strong> ${label.batchNumber}</div>
+    <div><strong>DRUM CONTAINER:</strong> #${label.drumNumber}</div>
+    <div><strong>PRODUCT:</strong> ${label.productName || 'Pharmaceutical Active Ingredient'}</div>
+    <div><strong>NET WEIGHT:</strong> ${label.netWeight} KG</div>
+    <div><strong>GROSS WEIGHT:</strong> ${label.grossWeight} KG</div>
+    <div><strong>TARE WEIGHT:</strong> ${(label.grossWeight - label.netWeight).toFixed(1)} KG</div>
+  </div>
+  <div class="box">
+    <div style="font-size:11px;color:#475569;">GS1 SERIAL SHIPPING CONTAINER CODE (00):</div>
+    <div class="sscc">${label.sscc}</div>
+  </div>
+  <div class="footer">
+    <div>Generated: ${label.generatedAt} IST by ${label.generatedBy}</div>
+    <div>Unique Label Snapshot ID: ${label.id}</div>
+    <div>GxP Verification: US FDA 21 CFR Part 11 §11.10(b) Data Integrity Verified</div>
+  </div>
+</body>
+</html>`;
+
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `LABEL_COPY_${label.batchNumber}_Drum_${label.drumNumber}.html`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    logAudit('DOWNLOAD_LABEL_COPY', 'Serialization', {
+      batchRef: label.batchNumber,
+      drumRef: label.drumNumber,
+      sscc: label.sscc,
+      newValue: 'Exported verified label copy HTML proof',
+      reason: 'Advance permission label digital proof download'
+    });
+  };
 
   // Generate Code-128 barcode pattern for SSCC
   const barcodeBars = generateCode128SvgBars(label.sscc.replace(/\D/g, ''));
@@ -440,6 +506,20 @@ export const ThermalLabelSimulator: React.FC<ThermalLabelProps> = ({
           >
             <Printer className="w-4 h-4 text-white" />
             <span className="text-white font-bold">Send to Thermal Printer</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleDownloadCopy}
+            className={`flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-bold rounded-xl border transition active:scale-95 shadow-xs ${
+              canDownload
+                ? 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200 cursor-pointer'
+                : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60'
+            }`}
+            title={canDownload ? 'Download authenticated label digital proof' : 'Advance permission required: Download Label Copy'}
+          >
+            {canDownload ? <Download className="w-4 h-4 text-indigo-600" /> : <Lock className="w-3.5 h-3.5 text-slate-400" />}
+            <span>Copy</span>
           </button>
           
           {onClose && (

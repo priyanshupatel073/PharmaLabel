@@ -334,7 +334,23 @@ try {
         'outcome'   => 'SUCCESS'
     ], $user['organization_id'], $user);
 
-    // 8. Return Success Payload to Frontend (Only newly onboarded client plant users require first-login password change)
+    // 8. Fetch dynamic role permissions from database for this specific role and plant organization
+    $userPermissions = [];
+    $userAdvancePermissions = [];
+    if (!empty($user['organization_id'])) {
+        $stmtPerm = $pdo->prepare("SELECT permissions, advance_permissions FROM `role_permissions` WHERE organization_id = :org_id AND role_name = :role_name LIMIT 1");
+        $stmtPerm->execute([
+            ':org_id'    => $user['organization_id'],
+            ':role_name' => $user['role']
+        ]);
+        $rolePermRow = $stmtPerm->fetch(PDO::FETCH_ASSOC);
+        if ($rolePermRow) {
+            $userPermissions = json_decode((string)$rolePermRow['permissions'], true) ?? [];
+            $userAdvancePermissions = json_decode((string)$rolePermRow['advance_permissions'], true) ?? [];
+        }
+    }
+
+    // 9. Return Success Payload to Frontend (Only newly onboarded client plant users require first-login password change)
     $isNewlyOnboardedClient = ($user['role'] !== 'SuperAdmin')
         && !empty($user['organization_id'])
         && empty($user['password_changed_at']);
@@ -349,6 +365,8 @@ try {
             'role'                 => $user['role'],
             'department'           => $user['department'],
             'organization_id'      => $user['organization_id'],
+            'permissions'          => $userPermissions,
+            'advance_permissions'  => $userAdvancePermissions,
             'must_change_password' => $isNewlyOnboardedClient
         ],
         'organization' => $tenantOrg

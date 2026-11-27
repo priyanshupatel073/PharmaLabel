@@ -9,11 +9,38 @@ import {
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
-  const { currentUser, products, templates } = useApp();
+  const { currentUser, products, templates, hasPermission } = useApp();
 
   const isSuperAdmin = currentUser.role === 'SuperAdmin';
   const pendingProducts  = products.filter(p => p.status === 'Pending Approval').length;
   const pendingTemplates = templates.filter(t => t.status === 'In Review' || t.status === 'Draft').length;
+
+  const canAccessTab = (tabId: string): boolean => {
+    if (isSuperAdmin) return true;
+    switch (tabId) {
+      case 'dashboard':
+        return true;
+      case 'printing':
+        return hasPermission('print_labels') || hasPermission('reprint_labels');
+      case 'batches':
+        return hasPermission('create_batch') || hasPermission('edit_batch');
+      case 'products':
+        return hasPermission('edit_products');
+      case 'templates':
+        return hasPermission('edit_templates');
+      case 'company':
+        return hasPermission('edit_company_info');
+      case 'securityHub':
+        return hasPermission('manage_users');
+      case 'audit':
+      case 'reports':
+        return hasPermission('view_audit');
+      case 'backup':
+        return hasPermission('backup_archive') || hasPermission('license_management');
+      default:
+        return true;
+    }
+  };
 
   const groups = isSuperAdmin
     ? [
@@ -103,7 +130,7 @@ export const Sidebar: React.FC = () => {
       {/* Navigation groups */}
       <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-5">
         {groups.map(group => {
-          const visibleItems = group.items.filter(item => item.roles.includes(currentUser.role));
+          const visibleItems = group.items.filter(item => item.roles.includes(currentUser.role) && canAccessTab(item.id));
           if (visibleItems.length === 0) return null;
 
           return (

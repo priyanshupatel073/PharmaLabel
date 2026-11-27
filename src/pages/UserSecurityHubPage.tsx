@@ -30,7 +30,7 @@ interface AdvancePermissionsMap {
 }
 
 export const UserSecurityHubPage: React.FC = () => {
-  const { currentUser, currentOrganization } = useApp();
+  const { currentUser, currentOrganization, updateRolePermissions, refreshRolePermissions } = useApp();
 
   const [activeTab, setActiveTab] = useState<HubTab>('roles');
   const [loading, setLoading] = useState(false);
@@ -279,7 +279,8 @@ export const UserSecurityHubPage: React.FC = () => {
       });
       const data = await res.json();
       if (data.success) {
-        showToast('Permission matrix saved successfully.');
+        updateRolePermissions(permissionMatrix, advancePermissions);
+        showToast('Permission matrix saved and applied across system.');
       } else {
         setErrorMessage(data.message || 'Failed to save matrix.');
       }
@@ -300,6 +301,7 @@ export const UserSecurityHubPage: React.FC = () => {
       });
       const data = await res.json();
       if (data.success) {
+        await refreshRolePermissions();
         showToast('Reset to GxP default permissions.');
         fetchAllData();
       }
@@ -349,6 +351,7 @@ export const UserSecurityHubPage: React.FC = () => {
       });
       const data = await res.json();
       if (data.success) {
+        updateRolePermissions(permissionMatrix, advancePermissions);
         showToast('Advance permissions updated successfully.');
         setShowAdvanceModal(false);
       } else {

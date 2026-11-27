@@ -2,11 +2,15 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { LabelType, LabelSnapshot, Drum } from '../types';
 import { ThermalLabelSimulator } from '../components/ThermalLabelSimulator';
-import { Barcode, RefreshCw, AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Barcode, RefreshCw, AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, X, FileSpreadsheet, ShieldAlert, Lock } from 'lucide-react';
 import { PageHeader, Card, PrimaryBtn, StatusBadge, Modal, FormField, Input, Select } from '../components/ui';
 
 export const LabelPrintingPage: React.FC = () => {
-  const { batches, templates, currentUser, generateDrumLabels, reprintDrumLabel, markDrumDamaged } = useApp();
+  const { batches, templates, currentUser, generateDrumLabels, reprintDrumLabel, markDrumDamaged, hasPermission, canExportLabels, canDownloadLabelCopy, logAudit } = useApp();
+
+  const canPrint = hasPermission('print_labels');
+  const canReprint = hasPermission('reprint_labels');
+  const canExport = canExportLabels();
 
   const activeBatches = batches.filter(b => b.status === 'In Progress' || b.status === 'Pending');
   const [batchId, setBatchId] = useState(activeBatches[0]?.id || '');
@@ -32,6 +36,10 @@ export const LabelPrintingPage: React.FC = () => {
   const selectRange = (s: number, e: number) => setSelectedDrums(Array.from({ length: e - s + 1 }, (_, i) => s + i));
 
   const handleGenerate = () => {
+    if (!canPrint) {
+      alert('Access Denied: Your role does not have permission to print labels (print_labels permission revoked by Admin).');
+      return;
+    }
     if (!batchId || !templateId || selectedDrums.length === 0) return;
     const s = generateDrumLabels(batchId, selectedDrums, templateId, labelType);
     setSnapshots(s); setSnapIdx(0);
@@ -39,6 +47,10 @@ export const LabelPrintingPage: React.FC = () => {
 
   const handleReprint = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canReprint) {
+      alert('Access Denied: Your role does not have permission to reprint labels (reprint_labels permission revoked by Admin).');
+      return;
+    }
     if (!selectedBatch || !reprintDrum) return;
     const s = reprintDrumLabel(selectedBatch.id, reprintDrum.drumNumber, reprintReason, reprintAuth);
     if (s) { setSnapshots([s]); setSnapIdx(0); }
@@ -52,12 +64,62 @@ export const LabelPrintingPage: React.FC = () => {
     setDamagedDrum(null); setDamageReason('');
   };
 
+  const handleExportCsv = () => {
+    if (!canExport) {
+      alert('Access Denied: Advance permission "Export Labels" is required for your role. Contact Plant Administrator.');
+      return;
+    }
+    if (!selectedBatch) return;
+
+    const headers = ['Drum Number', 'Net Weight (Kg)', 'Gross Weight (Kg)', 'Tare Weight (Kg)', 'Status', 'SSCC', 'Printed At'];
+    const rows = selectedBatch.drums.map(d => [
+      d.drumNumber,
+      d.netWeight.toFixed(2),
+      d.grossWeight.toFixed(2),
+      d.tareWeight.toFixed(2),
+      d.status,
+      d.sscc || 'Not Serialized',
+      d.labelGeneratedAt || 'Pending'
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `${selectedBatch.batchNumber}_SSCC_Labels_Export.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    logAudit('EXPORT_LABELS_CSV', 'Serialization', {
+      batchRef: selectedBatch.batchNumber,
+      newValue: `Exported ${selectedBatch.drums.length} drums to CSV under 21 CFR Part 11`,
+      reason: 'Advance permission label dataset export'
+    });
+  };
+
   return (
     <div className="space-y-5">
       <PageHeader
         title="Production Label Printing"
         subtitle="Select drums, execute GS1 Mod-10 SSCC serialization, and trigger validated thermal printing."
         badge={{ label: 'Thermal 4×6"', color: 'emerald' }}
+        action={
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition shadow-xs ${
+              canExport
+                ? 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300 cursor-pointer'
+                : 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed opacity-75'
+            }`}
+            title={canExport ? 'Export batch drum serialization dataset to CSV' : 'Export Labels permission restricted by Plant Admin'}
+          >
+            <FileSpreadsheet className={`w-4 h-4 ${canExport ? 'text-emerald-600' : 'text-slate-400'}`} />
+            <span>Export Labels (CSV)</span>
+            {!canExport && <span className="text-[9px] bg-slate-200 text-slate-600 px-1.5 py-0.2 rounded font-mono">Locked</span>}
+          </button>
+        }
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -131,20 +193,32 @@ export const LabelPrintingPage: React.FC = () => {
               </div>
             </div>
 
+            {!canPrint && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Printing Restricted: Your role (<strong>{currentUser.role}</strong>) does not have <strong>print_labels</strong> permission.</span>
+              </div>
+            )}
+
             <button
               type="button"
               onClick={handleGenerate}
-              disabled={selectedDrums.length === 0 || selectedBatch?.status === 'Pending'}
+              disabled={!canPrint || selectedDrums.length === 0 || selectedBatch?.status === 'Pending'}
               style={{
-                backgroundColor: selectedBatch?.status === 'Pending' ? '#94a3b8' : '#2563eb',
-                color: '#ffffff'
+                backgroundColor: !canPrint ? '#94a3b8' : selectedBatch?.status === 'Pending' ? '#94a3b8' : '#2563eb',
+                color: '#ffffff',
+                cursor: !canPrint ? 'not-allowed' : 'pointer'
               }}
               className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold
                          shadow-md flex items-center justify-center gap-2 disabled:opacity-40 border border-blue-700 transition"
             >
               <Barcode className="w-4 h-4 text-white" />
               <span className="text-white font-bold">
-                {selectedBatch?.status === 'Pending' ? 'Printing Locked (QA Clearance Required)' : `Generate & Print (${selectedDrums.length} Drums)`}
+                {!canPrint
+                  ? 'Original Printing Disabled (Admin Revoked)'
+                  : selectedBatch?.status === 'Pending'
+                  ? 'Printing Locked (QA Clearance Required)'
+                  : `Generate & Print (${selectedDrums.length} Drums)`}
               </span>
             </button>
             <div className="text-[11px] text-slate-500 font-medium text-center -mt-3">Real GS1 Mod-10 algorithm · Immutable snapshot</div>
@@ -191,18 +265,22 @@ export const LabelPrintingPage: React.FC = () => {
 
                       {isPrinted && !isDamaged && (
                         <div className="mt-2.5 pt-2 border-t border-slate-200/60 flex items-center justify-center gap-1">
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); setReprintDrum(d); setReprintReason(''); }}
-                            className="px-1.5 py-0.5 rounded text-[10px] font-bold transition flex items-center gap-1 bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300 shadow-xs"
-                            title="Request Regulated Reprint"
-                          >
-                            <RefreshCw className="w-2.5 h-2.5" /> Reprint
-                          </button>
+                          {canReprint ? (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setReprintDrum(d); setReprintReason(''); }}
+                              className="px-1.5 py-0.5 rounded text-[10px] font-bold transition flex items-center gap-1 bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300 shadow-xs cursor-pointer"
+                              title="Request Regulated Reprint"
+                            >
+                              <RefreshCw className="w-2.5 h-2.5" /> Reprint
+                            </button>
+                          ) : (
+                            <span className="text-[9px] text-slate-400 font-medium italic">Reprint Locked</span>
+                          )}
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); setDamagedDrum(d); setDamageReason(''); }}
-                            className="px-1.5 py-0.5 rounded text-[10px] font-bold transition flex items-center gap-1 bg-rose-100 text-rose-900 hover:bg-rose-200 border border-rose-300 shadow-xs"
+                            className="px-1.5 py-0.5 rounded text-[10px] font-bold transition flex items-center gap-1 bg-rose-100 text-rose-900 hover:bg-rose-200 border border-rose-300 shadow-xs cursor-pointer"
                             title="Report Damaged Container"
                           >
                             <AlertTriangle className="w-2.5 h-2.5" /> Damage
@@ -212,14 +290,18 @@ export const LabelPrintingPage: React.FC = () => {
 
                       {isDamaged && (
                         <div className="mt-2.5 pt-2 border-t border-rose-200/60 flex items-center justify-center">
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); setReprintDrum(d); setReprintReason(`Replacement for damaged label incident: ${d.damagedReason || 'Damaged label'}`); }}
-                            className="px-2 py-0.5 rounded text-[10px] font-bold transition flex items-center gap-1 bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300 shadow-xs cursor-pointer"
-                            title="Authorize Replacement Reprint for Damaged Drum"
-                          >
-                            <RefreshCw className="w-2.5 h-2.5" /> Reprint Replacement
-                          </button>
+                          {canReprint ? (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setReprintDrum(d); setReprintReason(`Replacement for damaged label incident: ${d.damagedReason || 'Damaged label'}`); }}
+                              className="px-2 py-0.5 rounded text-[10px] font-bold transition flex items-center gap-1 bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300 shadow-xs cursor-pointer"
+                              title="Authorize Replacement Reprint for Damaged Drum"
+                            >
+                              <RefreshCw className="w-2.5 h-2.5" /> Reprint Replacement
+                            </button>
+                          ) : (
+                            <span className="text-[9px] text-rose-400 font-medium italic">Replacement Locked</span>
+                          )}
                         </div>
                       )}
                     </div>

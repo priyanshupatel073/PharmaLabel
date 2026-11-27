@@ -64,7 +64,13 @@ interface AppContextType {
   triggerLockoutForEmail: (email: string, seconds?: number) => void;
   clearLockoutForEmail: (email: string) => void;
   resetAllLockouts: () => void;
-  hasPermission: (permission: string) => boolean;
+  hasPermission: (permission: string, targetRole?: string) => boolean;
+  rolePermissions: Record<string, string[]>;
+  advancePermissions: Record<string, { can_download_label_copy: boolean; can_export_labels: boolean }>;
+  updateRolePermissions: (matrix: Record<string, string[]>, advance?: Record<string, any>) => void;
+  refreshRolePermissions: () => Promise<void>;
+  canDownloadLabelCopy: (targetRole?: string) => boolean;
+  canExportLabels: (targetRole?: string) => boolean;
 
   // Actions
   logAudit: (
@@ -106,6 +112,30 @@ interface AppContextType {
   exportAuditTrailCsv: () => void;
   resetAllData: () => void;
 }
+
+const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
+  Admin: [
+    'edit_company_info', 'change_company_logo', 'printer_settings', 'backup_archive', 'license_management',
+    'create_batch', 'edit_batch', 'edit_drum_weight',
+    'print_labels', 'reprint_labels',
+    'edit_templates', 'edit_products',
+    'manage_users', 'view_audit'
+  ],
+  Supervisor: [
+    'create_batch', 'edit_batch', 'edit_drum_weight',
+    'print_labels', 'reprint_labels',
+    'view_audit'
+  ],
+  Operator: [
+    'print_labels'
+  ]
+};
+
+const DEFAULT_ADVANCE_PERMISSIONS: Record<string, { can_download_label_copy: boolean; can_export_labels: boolean }> = {
+  Admin: { can_download_label_copy: true, can_export_labels: true },
+  Supervisor: { can_download_label_copy: true, can_export_labels: false },
+  Operator: { can_download_label_copy: false, can_export_labels: false }
+};
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
@@ -179,9 +209,103 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {}
   };
 
+  const [rolePermissions, setRolePermissions] = useState<Record<string, string[]>>(() => {
+    const saved = localStorage.getItem('pharmalabel_role_permissions');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {}
+    }
+    return DEFAULT_ROLE_PERMISSIONS;
+  });
+
+  const [advancePermissions, setAdvancePermissions] = useState<Record<string, { can_download_label_copy: boolean; can_export_labels: boolean }>>(() => {
+    const saved = localStorage.getItem('pharmalabel_advance_permissions');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {}
+    }
+    return DEFAULT_ADVANCE_PERMISSIONS;
+  });
+
+  const refreshRolePermissions = async () => {
+    try {
+      const orgId = currentOrganization?.id;
+      if (!orgId || orgId === 'PLATFORM-CAMEL') return;
+      const token = localStorage.getItem('pharmalabel_token') || localStorage.getItem('token') || '';
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`/api/company/permissions.php?organization_id=${encodeURIComponent(orgId)}`, {
+        headers
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          const matrix = json.data.permission_matrix || {};
+          const advance = json.data.advance_permissions || {};
+          setRolePermissions(matrix);
+          setAdvancePermissions(advance);
+          localStorage.setItem('pharmalabel_role_permissions', JSON.stringify(matrix));
+          localStorage.setItem('pharmalabel_advance_permissions', JSON.stringify(advance));
+
+          // Immediate sync of active user's permissions
+          setCurrentUser(prevUser => {
+            if (!prevUser || prevUser.role === 'SuperAdmin') return prevUser;
+            const updatedPerms = matrix[prevUser.role];
+            if (Array.isArray(updatedPerms)) {
+              const updated = {
+                ...prevUser,
+                permissions: updatedPerms as any
+              };
+              localStorage.setItem('pharmalabel_user', JSON.stringify(updated));
+              return updated;
+            }
+            return prevUser;
+          });
+        }
+      }
+    } catch (e) {
+      console.error('[AppContext] Failed to refresh role permissions:', e);
+    }
+  };
+
+  const updateRolePermissions = (matrix: Record<string, string[]>, advance?: Record<string, any>) => {
+    setRolePermissions(matrix);
+    localStorage.setItem('pharmalabel_role_permissions', JSON.stringify(matrix));
+
+    if (advance) {
+      setAdvancePermissions(advance);
+      localStorage.setItem('pharmalabel_advance_permissions', JSON.stringify(advance));
+    }
+
+    // Immediately propagate updated permissions to current logged in user
+    setCurrentUser(prevUser => {
+      if (!prevUser || prevUser.role === 'SuperAdmin') return prevUser;
+      const updatedPerms = matrix[prevUser.role];
+      if (Array.isArray(updatedPerms)) {
+        const updated = {
+          ...prevUser,
+          permissions: updatedPerms as any
+        };
+        localStorage.setItem('pharmalabel_user', JSON.stringify(updated));
+        return updated;
+      }
+      return prevUser;
+    });
+  };
+
   useEffect(() => {
     refreshOrganizations();
+    refreshRolePermissions();
   }, []);
+
+  useEffect(() => {
+    if (currentOrganization?.id) {
+      refreshRolePermissions();
+    }
+  }, [currentOrganization?.id]);
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     const saved = localStorage.getItem('pharmalabel_auth');
@@ -294,7 +418,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const switchRole = (role: Role) => {
     const targetUser = users.find((u) => u.role === role) || users[0];
-    setCurrentUser(targetUser);
+    const perms = rolePermissions[role] || targetUser.permissions;
+    const updatedUser: User = {
+      ...targetUser,
+      permissions: perms as any
+    };
+    setCurrentUser(updatedUser);
+    localStorage.setItem('pharmalabel_user', JSON.stringify(updatedUser));
     logAudit('ROLE_SWITCH', 'Authentication', {
       newValue: `Switched view to ${role} (${targetUser.name})`,
       reason: 'Interactive demonstration evaluation'
@@ -552,8 +682,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     resetAllLockouts();
   };
 
-  const hasPermission = (permission: string): boolean => {
-    return currentUser.permissions.includes(permission as any);
+  const hasPermission = (permission: string, targetRole?: string): boolean => {
+    if (currentUser.role === 'SuperAdmin') return true;
+
+    const checkRole = targetRole || currentUser.role;
+
+    // Check dynamic permissions matrix for the role first
+    if (rolePermissions && Array.isArray(rolePermissions[checkRole])) {
+      return rolePermissions[checkRole].includes(permission);
+    }
+
+    // Fallback to active user's permissions array
+    return (currentUser.permissions || []).includes(permission as any);
+  };
+
+  const canDownloadLabelCopy = (targetRole?: string): boolean => {
+    if (currentUser.role === 'SuperAdmin') return true;
+    const checkRole = targetRole || currentUser.role;
+    return !!(advancePermissions[checkRole]?.can_download_label_copy);
+  };
+
+  const canExportLabels = (targetRole?: string): boolean => {
+    if (currentUser.role === 'SuperAdmin') return true;
+    const checkRole = targetRole || currentUser.role;
+    return !!(advancePermissions[checkRole]?.can_export_labels);
   };
 
   const logAudit = (
@@ -1213,6 +1365,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         clearLockoutForEmail,
         resetAllLockouts,
         hasPermission,
+        rolePermissions,
+        advancePermissions,
+        updateRolePermissions,
+        refreshRolePermissions,
+        canDownloadLabelCopy,
+        canExportLabels,
         logAudit,
         updateCompanySettings,
         addProduct,

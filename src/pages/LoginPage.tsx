@@ -232,13 +232,18 @@ export const LoginPage: React.FC = () => {
         const dbUser = res.data.user;
         const matchedMock = INITIAL_USERS.find(u => u.email.toLowerCase() === dbUser.email.toLowerCase()) || INITIAL_USERS.find(u => u.role === dbUser.role);
 
+        // Strictly prioritize dynamic database permissions for the user's role
+        const dynamicPermissions = Array.isArray(dbUser.permissions)
+          ? dbUser.permissions
+          : (matchedMock ? matchedMock.permissions : ['print_labels', 'view_audit']);
+
         const loggedInUser: User = {
           id: dbUser.id,
           name: dbUser.name,
           email: dbUser.email,
           role: dbUser.role,
           department: dbUser.department,
-          permissions: matchedMock ? matchedMock.permissions : ['print_labels', 'view_audit'],
+          permissions: dynamicPermissions,
           status: 'ACTIVE',
           lastLogin: res.timestamp,
           mustChangePassword: dbUser.role !== 'SuperAdmin' && !!dbUser.must_change_password
