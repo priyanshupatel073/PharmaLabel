@@ -307,8 +307,9 @@ try {
         && empty($user['password_changed_at']);
 
     sendSuccess([
-        'token'        => $token,
-        'user'         => [
+        'token'                => $token,
+        'must_change_password' => $isNewlyOnboardedClient,
+        'user'                 => [
             'id'                   => $user['id'],
             'name'                 => $user['name'],
             'email'                => $user['email'],

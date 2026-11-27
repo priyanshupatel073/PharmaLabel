@@ -199,32 +199,27 @@ function initLocalSqliteDatabase(PDO $pdo): void
         `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
 
-    // Check if seeded
-    $stmt = $pdo->query("SELECT COUNT(*) FROM `organizations`");
-    if ((int)$stmt->fetchColumn() === 0) {
-        // Seed Organizations
-        $pdo->exec("INSERT INTO `organizations` VALUES
-            ('ORG-APEX', 'Apex Healthcare Ltd.', 'Plot No. 42-45, Phase III, Industrial Area, Baddi, HP - 173205', 'compliance@apexpharma.com', '8901234', 'Enterprise Unlimited Traceability', 'ACTIVE', '2027-12-31', 18450, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-            ('ORG-SUNPHARMA', 'Sun Pharma Industries Ltd.', 'Halol, Gujarat (API Block 02)', 'qa.halol@sunpharma.com', '8904321', 'Enterprise Unlimited Traceability', 'EXPIRED', '2025-12-31', 42100, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-            ('ORG-CIPLA', 'Cipla Laboratories Ltd.', 'Kurkumbh, Maharashtra (OEB-4 Plant)', 'it.regulatory@cipla.com', '8909876', 'Standard GxP Plant Edition', 'SUSPENDED', '2025-10-31', 8900, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        ");
+    // Seed Demo Organizations & Users if missing (using INSERT OR IGNORE so existing custom data is untouched)
+    $pdo->exec("INSERT OR IGNORE INTO `organizations` VALUES
+        ('ORG-APEX', 'Apex Healthcare Ltd.', 'Plot No. 42-45, Phase III, Industrial Area, Baddi, HP - 173205', 'compliance@apexpharma.com', '8901234', 'Enterprise Unlimited Traceability', 'ACTIVE', '2027-12-31', 18450, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('ORG-SUNPHARMA', 'Sun Pharma Industries Ltd.', 'Halol, Gujarat (API Block 02)', 'qa.halol@sunpharma.com', '8904321', 'Enterprise Unlimited Traceability', 'EXPIRED', '2025-12-31', 42100, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('ORG-CIPLA', 'Cipla Laboratories Ltd.', 'Kurkumbh, Maharashtra (OEB-4 Plant)', 'it.regulatory@cipla.com', '8909876', 'Standard GxP Plant Edition', 'SUSPENDED', '2025-10-31', 8900, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    ");
 
-        // Seed Users (Password@123 hash = $2y$10$wT4cE6wZgWj29LdY7gZ7.u5uH9p60mDkIom8O0j7gK3dC1W8IqG4q or native bcrypt)
-        $defaultHash = password_hash('Password@123', PASSWORD_BCRYPT);
-        $insertUser = $pdo->prepare("INSERT INTO `users` VALUES (:id, :org_id, :name, :email, :pass, :role, :dept, :perms, 'ACTIVE', 0, NULL, NULL, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)");
+    $defaultHash = password_hash('Password@123', PASSWORD_BCRYPT);
+    $insertUser = $pdo->prepare("INSERT OR IGNORE INTO `users` VALUES (:id, :org_id, :name, :email, :pass, :role, :dept, :perms, 'ACTIVE', 0, NULL, '2026-01-01 00:00:00', NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)");
 
-        $insertUser->execute([':id' => 'usr_superadmin', ':org_id' => null, ':name' => 'Kunal Singhania', ':email' => 'superadmin@camelcomm.in', ':pass' => $defaultHash, ':role' => 'SuperAdmin', ':dept' => 'Global IT & Enterprise Systems', ':perms' => json_encode(['manage_platforms','manage_licenses','global_audit'])]);
-        $insertUser->execute([':id' => 'usr_admin', ':org_id' => 'ORG-APEX', ':name' => 'Vikram Joshi', ':email' => 'admin@apexpharma.com', ':pass' => $defaultHash, ':role' => 'Admin', ':dept' => 'Plant IT & Serialization Admin', ':perms' => json_encode(['print_labels','reprint_labels','create_batch','edit_batch','manage_users'])]);
-        $insertUser->execute([':id' => 'usr_supervisor', ':org_id' => 'ORG-APEX', ':name' => 'Dr. Anjali Nair', ':email' => 'supervisor@apexpharma.com', ':pass' => $defaultHash, ':role' => 'Supervisor', ':dept' => 'Quality Assurance & Regulatory Compliance', ':perms' => json_encode(['print_labels','reprint_labels','edit_drum_weight','approve_product'])]);
-        $insertUser->execute([':id' => 'usr_operator', ':org_id' => 'ORG-APEX', ':name' => 'Ramesh Kumar', ':email' => 'operator@apexpharma.com', ':pass' => $defaultHash, ':role' => 'Operator', ':dept' => 'Shop-Floor Packaging Line 02', ':perms' => json_encode(['print_labels','create_batch'])]);
-        $insertUser->execute([':id' => 'usr_sun_admin', ':org_id' => 'ORG-SUNPHARMA', ':name' => 'Rajesh Patel', ':email' => 'admin@sunpharma.com', ':pass' => $defaultHash, ':role' => 'Admin', ':dept' => 'Sun Pharma QA & IT Systems', ':perms' => json_encode(['print_labels','reprint_labels','create_batch','edit_batch','manage_users'])]);
-        $insertUser->execute([':id' => 'usr_sun_qa', ':org_id' => 'ORG-SUNPHARMA', ':name' => 'Meera Shah', ':email' => 'qa.halol@sunpharma.com', ':pass' => $defaultHash, ':role' => 'Supervisor', ':dept' => 'Sun Pharma Halol QA', ':perms' => json_encode(['print_labels','reprint_labels','edit_drum_weight','approve_product'])]);
-        $insertUser->execute([':id' => 'usr_cipla_admin', ':org_id' => 'ORG-CIPLA', ':name' => 'Sunil Deshmukh', ':email' => 'admin@cipla.com', ':pass' => $defaultHash, ':role' => 'Admin', ':dept' => 'Cipla Kurkumbh Serialization', ':perms' => json_encode(['print_labels','reprint_labels','create_batch','edit_batch','manage_users'])]);
-        $insertUser->execute([':id' => 'usr_cipla_reg', ':org_id' => 'ORG-CIPLA', ':name' => 'Pooja Kulkarni', ':email' => 'it.regulatory@cipla.com', ':pass' => $defaultHash, ':role' => 'Supervisor', ':dept' => 'Cipla Regulatory Compliance', ':perms' => json_encode(['print_labels','reprint_labels','edit_drum_weight','approve_product'])]);
+    $insertUser->execute([':id' => 'usr_superadmin', ':org_id' => null, ':name' => 'Kunal Singhania', ':email' => 'superadmin@camelcomm.in', ':pass' => $defaultHash, ':role' => 'SuperAdmin', ':dept' => 'Global IT & Enterprise Systems', ':perms' => json_encode(['manage_platforms','manage_licenses','global_audit'])]);
+    $insertUser->execute([':id' => 'usr_admin', ':org_id' => 'ORG-APEX', ':name' => 'Vikram Joshi', ':email' => 'admin@apexpharma.com', ':pass' => $defaultHash, ':role' => 'Admin', ':dept' => 'Plant IT & Serialization Admin', ':perms' => json_encode(['print_labels','reprint_labels','create_batch','edit_batch','manage_users'])]);
+    $insertUser->execute([':id' => 'usr_supervisor', ':org_id' => 'ORG-APEX', ':name' => 'Dr. Anjali Nair', ':email' => 'supervisor@apexpharma.com', ':pass' => $defaultHash, ':role' => 'Supervisor', ':dept' => 'Quality Assurance & Regulatory Compliance', ':perms' => json_encode(['print_labels','reprint_labels','edit_drum_weight','approve_product'])]);
+    $insertUser->execute([':id' => 'usr_operator', ':org_id' => 'ORG-APEX', ':name' => 'Ramesh Kumar', ':email' => 'operator@apexpharma.com', ':pass' => $defaultHash, ':role' => 'Operator', ':dept' => 'Shop-Floor Packaging Line 02', ':perms' => json_encode(['print_labels','create_batch'])]);
+    $insertUser->execute([':id' => 'usr_sun_admin', ':org_id' => 'ORG-SUNPHARMA', ':name' => 'Rajesh Patel', ':email' => 'admin@sunpharma.com', ':pass' => $defaultHash, ':role' => 'Admin', ':dept' => 'Sun Pharma QA & IT Systems', ':perms' => json_encode(['print_labels','reprint_labels','create_batch','edit_batch','manage_users'])]);
+    $insertUser->execute([':id' => 'usr_sun_qa', ':org_id' => 'ORG-SUNPHARMA', ':name' => 'Meera Shah', ':email' => 'qa.halol@sunpharma.com', ':pass' => $defaultHash, ':role' => 'Supervisor', ':dept' => 'Sun Pharma Halol QA', ':perms' => json_encode(['print_labels','reprint_labels','edit_drum_weight','approve_product'])]);
+    $insertUser->execute([':id' => 'usr_cipla_admin', ':org_id' => 'ORG-CIPLA', ':name' => 'Sunil Deshmukh', ':email' => 'admin@cipla.com', ':pass' => $defaultHash, ':role' => 'Admin', ':dept' => 'Cipla Kurkumbh Serialization', ':perms' => json_encode(['print_labels','reprint_labels','create_batch','edit_batch','manage_users'])]);
+    $insertUser->execute([':id' => 'usr_cipla_reg', ':org_id' => 'ORG-CIPLA', ':name' => 'Pooja Kulkarni', ':email' => 'it.regulatory@cipla.com', ':pass' => $defaultHash, ':role' => 'Supervisor', ':dept' => 'Cipla Regulatory Compliance', ':perms' => json_encode(['print_labels','reprint_labels','edit_drum_weight','approve_product'])]);
 
-        // Seed Company Settings
-        $pdo->exec("INSERT INTO `company_settings` (organization_id, company_name, address, contact_number, email, mfg_license_number, gst_number, gs1_company_prefix, extension_digit, next_serial_reference, printer_name, default_label_dimension) VALUES
-            ('ORG-APEX', 'Apex Healthcare Ltd.', 'Plot No. 42-45, Phase III, Industrial Area, Baddi, HP - 173205', '+91 1795 244800', 'compliance@apexpharma.com', 'HP/MNB/08/123-A', '02AAACA4512B1Z6', '8901234', '1', 41, 'Zebra ZT411 Industrial (Thermal 300DPI - Line 02)', '4x6')
-        ");
-    }
+    // Seed Company Settings
+    $pdo->exec("INSERT OR IGNORE INTO `company_settings` (organization_id, company_name, address, contact_number, email, mfg_license_number, gst_number, gs1_company_prefix, extension_digit, next_serial_reference, printer_name, default_label_dimension) VALUES
+        ('ORG-APEX', 'Apex Healthcare Ltd.', 'Plot No. 42-45, Phase III, Industrial Area, Baddi, HP - 173205', '+91 1795 244800', 'compliance@apexpharma.com', 'HP/MNB/08/123-A', '02AAACA4512B1Z6', '8901234', '1', 41, 'Zebra ZT411 Industrial (Thermal 300DPI - Line 02)', '4x6')
+    ");
 }
