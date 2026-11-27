@@ -3,7 +3,8 @@ import { useApp } from '../context/AppContext';
 import {
   Users, Shield, KeyRound, Mail, Plus, Edit3, RotateCcw, Save,
   Check, X, AlertTriangle, Send, RefreshCw, Lock, Sparkles,
-  Download, FileSpreadsheet, Building, Layers, Tags, Eye, EyeOff
+  Download, FileSpreadsheet, Building, Layers, Tags, Eye, EyeOff,
+  Trash2
 } from 'lucide-react';
 
 type HubTab = 'users' | 'roles' | 'security' | 'smtp';
@@ -84,6 +85,9 @@ export const UserSecurityHubPage: React.FC = () => {
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [showEditUserModal, setShowEditUserModal] = useState(false);
   const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
+  const [showDeleteUserModal, setShowDeleteUserModal] = useState(false);
+  const [deleteTargetUser, setDeleteTargetUser] = useState<PlantUserItem | null>(null);
+  const [deleteReason, setDeleteReason] = useState('Administrative user deprovisioning');
 
   // Add User Form
   const [newUserForm, setNewUserForm] = useState({
@@ -481,6 +485,47 @@ export const UserSecurityHubPage: React.FC = () => {
       }
     } catch (e: any) {
       setErrorMessage(e.message || 'Network error.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOpenDeleteUser = (user?: PlantUserItem) => {
+    const target = user || usersList.find(u => u.id === selectedUserId);
+    if (!target) return;
+    setDeleteTargetUser(target);
+    setDeleteReason('Administrative user deprovisioning');
+    setShowDeleteUserModal(true);
+  };
+
+  const handleDeleteUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!deleteTargetUser) return;
+    setLoading(true);
+    setErrorMessage('');
+    try {
+      const res = await fetch(`/api/company/users.php?organization_id=${encodeURIComponent(orgId)}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          user_id: deleteTargetUser.id,
+          reason: deleteReason
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`User '${deleteTargetUser.name}' (${deleteTargetUser.username}) was permanently deleted.`);
+        setShowDeleteUserModal(false);
+        setDeleteTargetUser(null);
+        if (selectedUserId === deleteTargetUser.id) {
+          setSelectedUserId(null);
+        }
+        fetchAllData();
+      } else {
+        setErrorMessage(data.message || 'Failed to delete user.');
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Network error.');
     } finally {
       setLoading(false);
     }
@@ -908,6 +953,16 @@ export const UserSecurityHubPage: React.FC = () => {
 
               <button
                 type="button"
+                onClick={() => handleOpenDeleteUser()}
+                disabled={!selectedUserId}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 text-xs font-bold shadow-xs transition disabled:opacity-40"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                Delete User
+              </button>
+
+              <button
+                type="button"
                 onClick={fetchAllData}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-bold shadow-xs transition"
               >
@@ -929,13 +984,14 @@ export const UserSecurityHubPage: React.FC = () => {
                     <th className="py-2.5 px-3 font-bold border-r border-[#1a3d69]">E-Mail</th>
                     <th className="py-2.5 px-3 font-bold border-r border-[#1a3d69] text-center">Password</th>
                     <th className="py-2.5 px-3 font-bold border-r border-[#1a3d69] text-center">Status</th>
-                    <th className="py-2.5 px-3 font-bold text-center">Created</th>
+                    <th className="py-2.5 px-3 font-bold border-r border-[#1a3d69] text-center">Created</th>
+                    <th className="py-2.5 px-3 font-bold text-center w-16">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {usersList.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="py-8 text-center text-slate-400 font-medium">
+                      <td colSpan={10} className="py-8 text-center text-slate-400 font-medium">
                         No users configured for this facility. Click <strong>+ Add User</strong> to provision credentials.
                       </td>
                     </tr>
@@ -982,8 +1038,18 @@ export const UserSecurityHubPage: React.FC = () => {
                               {u.status === 'ACTIVE' ? 'Active' : u.status}
                             </span>
                           </td>
-                          <td className="py-2.5 px-3 text-center font-mono text-[11px] text-slate-500">
+                          <td className="py-2.5 px-3 text-center font-mono text-[11px] text-slate-500 border-r border-slate-100">
                             {u.created_at ? u.created_at.replace('T', ' ').substring(0, 19) : '—'}
+                          </td>
+                          <td className="py-2.5 px-2 text-center" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenDeleteUser(u)}
+                              title={`Delete ${u.username}`}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition inline-flex items-center justify-center"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </td>
                         </tr>
                       );
@@ -1785,6 +1851,120 @@ export const UserSecurityHubPage: React.FC = () => {
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================================== */}
+      {/* MODAL 3.5: DELETE USER CONFIRMATION MODAL (21 CFR Part 11 Compliant) */}
+      {/* ==================================================================== */}
+      {showDeleteUserModal && deleteTargetUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="bg-rose-600 px-6 py-4 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Trash2 className="w-5 h-5 text-white" />
+                <h3 className="font-bold text-sm">Delete User Account</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeleteUserModal(false);
+                  setDeleteTargetUser(null);
+                }}
+                className="text-rose-200 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleDeleteUser} className="p-6 space-y-4">
+              <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs space-y-2">
+                <div className="font-bold text-sm flex items-center gap-1.5 text-rose-700">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  Permanent Deprovisioning Warning
+                </div>
+                <p className="leading-relaxed">
+                  Are you sure you want to permanently delete user{' '}
+                  <strong className="font-mono text-slate-900 font-bold bg-white px-1.5 py-0.5 rounded border border-rose-200">
+                    {deleteTargetUser.username}
+                  </strong>{' '}
+                  ({deleteTargetUser.name})?
+                </p>
+                <div className="text-[11px] text-rose-700 pt-1 border-t border-rose-200/60 leading-relaxed">
+                  <strong>21 CFR Part 11 ALCOA+ Audit Trail:</strong> The user's account credentials and login authorization will be permanently removed. All historical signatures, printed labels, batch records, and audit log entries generated by this user will remain permanently archived in compliance with regulatory integrity mandates.
+                </div>
+              </div>
+
+              {/* Target Details Summary Card */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Full Name:</span>
+                  <span className="font-bold text-slate-800">{deleteTargetUser.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Role:</span>
+                  <span className="font-bold text-[#0d3b75]">{deleteTargetUser.role}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Department:</span>
+                  <span className="text-slate-700">{deleteTargetUser.department || 'Operations'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Email:</span>
+                  <span className="font-mono text-[11px] text-slate-600">{deleteTargetUser.email}</span>
+                </div>
+              </div>
+
+              {/* Prevent Self Deletion */}
+              {(deleteTargetUser.id === currentUser.id ||
+                deleteTargetUser.email.toLowerCase() === currentUser.email.toLowerCase()) ? (
+                <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-amber-900 text-xs font-semibold flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Security Restriction: You cannot delete your own active administrator account.</span>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Reason for Deletion (Mandatory for Audit Trail) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={deleteReason}
+                    onChange={(e) => setDeleteReason(e.target.value)}
+                    placeholder="e.g. Employee separation, account deprecated..."
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:outline-blue-500 text-slate-800"
+                  />
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDeleteUserModal(false);
+                    setDeleteTargetUser(null);
+                  }}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={
+                    loading ||
+                    deleteTargetUser.id === currentUser.id ||
+                    deleteTargetUser.email.toLowerCase() === currentUser.email.toLowerCase() ||
+                    !deleteReason.trim()
+                  }
+                  className="px-5 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs transition disabled:opacity-40 flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  {loading ? 'Deleting...' : 'Permanently Delete User'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

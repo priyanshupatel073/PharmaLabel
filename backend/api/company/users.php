@@ -86,6 +86,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $action = $_GET['action'] ?? ($input['action'] ?? 'create');
 
+    // Sub-action: Delete User via POST ?action=delete
+    if ($action === 'delete') {
+        $targetUserId = trim((string)($input['user_id'] ?? ($input['id'] ?? ($_GET['id'] ?? ($_GET['user_id'] ?? '')))));
+        $reason = trim((string)($input['reason'] ?? ($_GET['reason'] ?? 'Deprovisioned by plant administrator')));
+
+        if (empty($targetUserId)) {
+            sendError('User ID is required for deletion.', 400);
+        }
+
+        try {
+            $stmtUser = $pdo->prepare("SELECT * FROM `users` WHERE id = :id AND organization_id = :org_id LIMIT 1");
+            $stmtUser->execute([':id' => $targetUserId, ':org_id' => $targetOrgId]);
+            $targetUser = $stmtUser->fetch(PDO::FETCH_ASSOC);
+
+            if (!$targetUser) {
+                sendError('User not found in this organization.', 404);
+            }
+
+            // Prevent Admin from deleting their own active logged-in account
+            $isSelf = ($targetUser['id'] === ($currentUser['id'] ?? ''))
+                || (strtolower((string)$targetUser['email']) === strtolower((string)($currentUser['email'] ?? '')));
+            if ($isSelf) {
+                sendError('Security Violation: You cannot delete your own active administrator account.', 403);
+            }
+
+            // Delete user record
+            $stmtDel = $pdo->prepare("DELETE FROM `users` WHERE id = :id AND organization_id = :org_id");
+            $stmtDel->execute([':id' => $targetUserId, ':org_id' => $targetOrgId]);
+
+            // Clean up password history
+            $pdo->prepare("DELETE FROM `password_history` WHERE user_id = :id")->execute([':id' => $targetUserId]);
+
+            // US FDA 21 CFR Part 11 ALCOA+ Audit Trail
+            logAuditTrail($pdo, 'USER_DELETED', 'UserSecurity', [
+                'deleted_user_id'  => $targetUser['id'],
+                'deleted_username' => $targetUser['username'],
+                'deleted_name'     => $targetUser['name'],
+                'deleted_role'     => $targetUser['role'],
+                'deleted_email'    => $targetUser['email'],
+                'reason'           => $reason,
+                'deleted_by'       => $currentUser['name'] ?? $currentUser['email'],
+                'outcome'          => 'SUCCESS'
+            ], $targetOrgId, $currentUser);
+
+            sendSuccess([
+                'deleted_user_id'  => $targetUserId,
+                'deleted_username' => $targetUser['username']
+            ], "User '{$targetUser['name']}' ({$targetUser['username']}) was permanently deleted from the system.");
+        } catch (PDOException $e) {
+            sendError('Failed to delete user: ' . $e->getMessage(), 500);
+        }
+    }
+
     // Sub-action: Reset User Password
     if ($action === 'reset_password') {
         $userId = trim((string)($input['user_id'] ?? ''));
@@ -302,5 +355,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
         sendSuccess(null, "User '$userId' updated successfully.");
     } catch (PDOException $e) {
         sendError('Failed to update user: ' . $e->getMessage(), 500);
+    }
+}
+
+// ----------------------------------------------------------------------------
+// 4. DELETE: Permanently Delete User
+// ----------------------------------------------------------------------------
+if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+    $raw = file_get_contents('php://input');
+    $input = json_decode($raw, true) ?? [];
+
+    $targetUserId = trim((string)($input['user_id'] ?? ($input['id'] ?? ($_GET['id'] ?? ($_GET['user_id'] ?? '')))));
+    $reason = trim((string)($input['reason'] ?? ($_GET['reason'] ?? 'Deprovisioned by plant administrator')));
+
+    if (empty($targetUserId)) {
+        sendError('User ID is required for deletion.', 400);
+    }
+
+    try {
+        $stmtUser = $pdo->prepare("SELECT * FROM `users` WHERE id = :id AND organization_id = :org_id LIMIT 1");
+        $stmtUser->execute([':id' => $targetUserId, ':org_id' => $targetOrgId]);
+        $targetUser = $stmtUser->fetch(PDO::FETCH_ASSOC);
+
+        if (!$targetUser) {
+            sendError('User not found in this organization.', 404);
+        }
+
+        // Prevent Admin from deleting their own active logged-in account
+        $isSelf = ($targetUser['id'] === ($currentUser['id'] ?? ''))
+            || (strtolower((string)$targetUser['email']) === strtolower((string)($currentUser['email'] ?? '')));
+        if ($isSelf) {
+            sendError('Security Violation: You cannot delete your own active administrator account.', 403);
+        }
+
+        // Delete user record
+        $stmtDel = $pdo->prepare("DELETE FROM `users` WHERE id = :id AND organization_id = :org_id");
+        $stmtDel->execute([':id' => $targetUserId, ':org_id' => $targetOrgId]);
+
+        // Clean up password history
+        $pdo->prepare("DELETE FROM `password_history` WHERE user_id = :id")->execute([':id' => $targetUserId]);
+
+        // US FDA 21 CFR Part 11 ALCOA+ Audit Trail
+        logAuditTrail($pdo, 'USER_DELETED', 'UserSecurity', [
+            'deleted_user_id'  => $targetUser['id'],
+            'deleted_username' => $targetUser['username'],
+            'deleted_name'     => $targetUser['name'],
+            'deleted_role'     => $targetUser['role'],
+            'deleted_email'    => $targetUser['email'],
+            'reason'           => $reason,
+            'deleted_by'       => $currentUser['name'] ?? $currentUser['email'],
+            'outcome'          => 'SUCCESS'
+        ], $targetOrgId, $currentUser);
+
+        sendSuccess([
+            'deleted_user_id'  => $targetUserId,
+            'deleted_username' => $targetUser['username']
+        ], "User '{$targetUser['name']}' ({$targetUser['username']}) was permanently deleted from the system.");
+    } catch (PDOException $e) {
+        sendError('Failed to delete user: ' . $e->getMessage(), 500);
     }
 }
