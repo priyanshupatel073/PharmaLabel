@@ -102,12 +102,9 @@ try {
         sendError('User account not found.', 404);
     }
 
-    // Verify current password
+    // Verify current password strictly against cryptographic bcrypt hash
     if (!password_verify($currentPassword, $user['password_hash'])) {
-        // Fallback for demo seed hash if tested
-        if (!($currentPassword === 'Password@123' && strpos($user['password_hash'], '$2y$') !== false)) {
-            sendError('Current password entered is incorrect.', 401);
-        }
+        sendError('Current password entered is incorrect.', 401);
     }
 
     // Hash new password using bcrypt

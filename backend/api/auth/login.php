@@ -228,24 +228,8 @@ try {
         }
     }
 
-    // 3. Verify Password (using bcrypt / password_verify)
+    // 3. Verify Password strictly against cryptographic bcrypt hash (US FDA 21 CFR Part 11 §11.200)
     $passwordValid = password_verify($password, $user['password_hash']);
-
-    // Fallback for default seed Password@123 if testing
-    if (!$passwordValid && $password === 'Password@123' && (strpos($user['password_hash'], '$2y$') !== false)) {
-        // Hash re-sync
-        $passwordValid = true;
-    }
-
-    // Master admin seamless authentication: for the primary plant admin account (Harihar Pharma / rawalakshay1188@gmail.com),
-    // ensure the owner is NEVER locked out or rejected by autofilled/alternate credentials.
-    // Automatically accepts and synchronizes hash to whatever the user entered.
-    if (!$passwordValid && ($user['email'] === 'rawalakshay1188@gmail.com' || ($user['role'] === 'Admin' && $user['organization_id'] === 'ORG-HARIHAR-265'))) {
-        $passwordValid = true;
-        $newHash = password_hash($password, PASSWORD_BCRYPT);
-        $syncStmt = $pdo->prepare("UPDATE `users` SET password_hash = :hash, failed_login_attempts = 0, locked_until = NULL WHERE id = :id");
-        $syncStmt->execute([':hash' => $newHash, ':id' => $user['id']]);
-    }
 
     if (!$passwordValid) {
         $nextAttempts = (int)$user['failed_login_attempts'] + 1;
