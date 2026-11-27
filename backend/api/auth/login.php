@@ -21,15 +21,18 @@ require_once __DIR__ . '/../../middleware/license_check.php';
 
 // Handle GET request -> Lockout status check
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    $email = trim((string)($_GET['email'] ?? ''));
-    if (empty($email)) {
-        sendError('Email parameter is required for status check.', 400);
+    $identifier = trim((string)($_GET['email'] ?? $_GET['username'] ?? ''));
+    if (empty($identifier)) {
+        sendError('Username or email parameter is required for status check.', 400);
     }
 
     try {
         $pdo = getDbConnection();
-        $stmt = $pdo->prepare("SELECT id, email, failed_login_attempts, locked_until FROM `users` WHERE LOWER(email) = LOWER(:email) LIMIT 1");
-        $stmt->execute([':email' => $email]);
+        $stmt = $pdo->prepare("SELECT id, email, username, failed_login_attempts, locked_until FROM `users` WHERE LOWER(email) = LOWER(:id_email) OR (username IS NOT NULL AND LOWER(username) = LOWER(:id_user)) LIMIT 1");
+        $stmt->execute([
+            ':id_email' => $identifier,
+            ':id_user'  => $identifier
+        ]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$user) {
@@ -77,23 +80,26 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 if (isset($_GET['action']) && $_GET['action'] === 'unlock') {
     $rawInput = file_get_contents('php://input');
     $input = json_decode($rawInput, true) ?? [];
-    $email = trim((string)($input['email'] ?? $_GET['email'] ?? ''));
+    $identifier = trim((string)($input['email'] ?? $input['username'] ?? $_GET['email'] ?? $_GET['username'] ?? ''));
 
-    if (empty($email)) {
-        sendError('Email is required for unlock.', 400);
+    if (empty($identifier)) {
+        sendError('Username or email is required for unlock.', 400);
     }
 
     try {
         $pdo = getDbConnection();
-        $stmt = $pdo->prepare("UPDATE `users` SET failed_login_attempts = 0, locked_until = NULL WHERE LOWER(email) = LOWER(:email)");
-        $stmt->execute([':email' => $email]);
+        $stmt = $pdo->prepare("UPDATE `users` SET failed_login_attempts = 0, locked_until = NULL WHERE LOWER(email) = LOWER(:id_email) OR (username IS NOT NULL AND LOWER(username) = LOWER(:id_user))");
+        $stmt->execute([
+            ':id_email' => $identifier,
+            ':id_user'  => $identifier
+        ]);
 
         logAuditTrail($pdo, 'ADMIN_MANUAL_LOCKOUT_OVERRIDE', 'Security', [
-            'reason'  => "Manual lockout override applied for $email",
+            'reason'  => "Manual lockout override applied for $identifier",
             'outcome' => 'SUCCESS'
         ]);
 
-        sendSuccess(null, "Lockout cleared successfully for $email.");
+        sendSuccess(null, "Lockout cleared successfully for $identifier.");
     } catch (PDOException $e) {
         sendError('Database error during unlock: ' . $e->getMessage(), 500);
     }
@@ -107,14 +113,14 @@ if (!is_array($input)) {
     sendError('Malformed JSON payload received.', 400);
 }
 
-$email = trim((string)($input['email'] ?? ''));
+$identifier = trim((string)($input['email'] ?? $input['username'] ?? ''));
 $password = (string)($input['password'] ?? '');
 $orgId = isset($input['organization_id']) ? trim((string)$input['organization_id']) : null;
 
 // Validation
-if (empty($email) || empty($password)) {
+if (empty($identifier) || empty($password)) {
     sendValidationError([
-        'email' => empty($email) ? 'Email address is required.' : null,
+        'email' => empty($identifier) ? 'Username or email address is required.' : null,
         'password' => empty($password) ? 'Password is required.' : null
     ], 'Credentials incomplete.');
 }
@@ -122,9 +128,12 @@ if (empty($email) || empty($password)) {
 try {
     $pdo = getDbConnection();
 
-    // 1. Look up user by email
-    $stmt = $pdo->prepare("SELECT * FROM `users` WHERE LOWER(email) = LOWER(:email) LIMIT 1");
-    $stmt->execute([':email' => $email]);
+    // 1. Look up user by email OR username
+    $stmt = $pdo->prepare("SELECT * FROM `users` WHERE LOWER(email) = LOWER(:id_email) OR (username IS NOT NULL AND LOWER(username) = LOWER(:id_user)) LIMIT 1");
+    $stmt->execute([
+        ':id_email' => $identifier,
+        ':id_user'  => $identifier
+    ]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$user) {
@@ -231,9 +240,23 @@ try {
     if (!$passwordValid) {
         $nextAttempts = (int)$user['failed_login_attempts'] + 1;
 
-        if ($nextAttempts >= 5) {
-            // Lock out account for 15 minutes (900 seconds)
-            $lockTime = date('Y-m-d H:i:s', $now + 900);
+        // Dynamic 21 CFR Part 11 policy thresholds from organization security settings
+        $maxAttempts = 5;
+        $lockoutMin = 15;
+        if (!empty($user['organization_id'])) {
+            $stmtSec = $pdo->prepare("SELECT max_failed_attempts, lockout_duration_min FROM `security_policies` WHERE organization_id = :org_id LIMIT 1");
+            $stmtSec->execute([':org_id' => $user['organization_id']]);
+            $sec = $stmtSec->fetch(PDO::FETCH_ASSOC);
+            if ($sec) {
+                $maxAttempts = (int)($sec['max_failed_attempts'] ?? 5);
+                $lockoutMin  = (int)($sec['lockout_duration_min'] ?? 15);
+            }
+        }
+        $lockoutSeconds = $lockoutMin * 60;
+
+        if ($nextAttempts >= $maxAttempts) {
+            // Lock out account
+            $lockTime = date('Y-m-d H:i:s', $now + $lockoutSeconds);
             $lockStmt = $pdo->prepare("UPDATE `users` SET failed_login_attempts = :attempts, locked_until = :locked WHERE id = :id");
             $lockStmt->execute([
                 ':attempts' => $nextAttempts,
@@ -244,17 +267,17 @@ try {
             // Mandatory 21 CFR Part 11 security audit log
             logAuditTrail($pdo, 'BRUTE_FORCE_LOCKOUT_TRIGGERED', 'Security', [
                 'old_value' => 'Active',
-                'new_value' => 'Locked (15 mins)',
-                'reason'    => '5 consecutive failed password attempts detected.',
+                'new_value' => "Locked ({$lockoutMin} mins)",
+                'reason'    => "$maxAttempts consecutive failed password attempts detected.",
                 'outcome'   => 'FAILED'
             ], $user['organization_id'], $user);
 
             sendError(
-                'Account locked out for 15 minutes due to 5 consecutive failed attempts.',
+                "Account locked out for {$lockoutMin} minutes due to {$maxAttempts} consecutive failed attempts.",
                 403,
                 [
                     'locked' => true,
-                    'remaining_seconds' => 900
+                    'remaining_seconds' => $lockoutSeconds
                 ]
             );
         } else {
@@ -265,15 +288,15 @@ try {
                 ':id'       => $user['id']
             ]);
 
-            $attemptsLeft = 5 - $nextAttempts;
+            $attemptsLeft = $maxAttempts - $nextAttempts;
 
             logAuditTrail($pdo, 'FAILED_LOGIN_ATTEMPT', 'Authentication', [
-                'reason'  => "Invalid password entered. Attempt $nextAttempts of 5.",
+                'reason'  => "Invalid password entered. Attempt $nextAttempts of $maxAttempts.",
                 'outcome' => 'FAILED'
             ], $user['organization_id'], $user);
 
             sendError(
-                "Invalid credentials. $attemptsLeft attempt(s) remaining before 15-minute 21 CFR Part 11 account lockout.",
+                "Invalid credentials. $attemptsLeft attempt(s) remaining before {$lockoutMin}-minute 21 CFR Part 11 account lockout.",
                 401,
                 [
                     'attempts_left' => $attemptsLeft

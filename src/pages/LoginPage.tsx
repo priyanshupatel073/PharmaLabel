@@ -281,40 +281,6 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  // 1-Click Fast Demo Login Handler
-  const handleQuickDemoLogin = async (role: Role, orgId?: string) => {
-    setErrorMessage('');
-    const targetEmail = role === 'SuperAdmin' ? 'superadmin@camelcomm.in' : 
-      role === 'Admin' ? (orgId === 'ORG-SUNPHARMA' ? 'admin@sunpharma.com' : orgId === 'ORG-CIPLA' ? 'admin@cipla.com' : 'admin@apexpharma.com') :
-      role === 'Supervisor' ? (orgId === 'ORG-SUNPHARMA' ? 'qa.halol@sunpharma.com' : orgId === 'ORG-CIPLA' ? 'it.regulatory@cipla.com' : 'supervisor@apexpharma.com') : 'operator@apexpharma.com';
-
-    clearLockoutForEmail(targetEmail);
-    setActiveLockout(0);
-
-    try {
-      await fetch('/api/auth/login.php?action=unlock', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: targetEmail })
-      });
-    } catch (e) {}
-
-    if (role === 'SuperAdmin') {
-      const superUser = INITIAL_USERS.find(u => u.role === 'SuperAdmin')!;
-      login(superUser);
-      navigate('/superadmin');
-    } else {
-      const targetUser = INITIAL_USERS.find(u => u.email.toLowerCase() === targetEmail.toLowerCase()) || INITIAL_USERS.find(u => u.role === role)!;
-      const targetOrg = organizations.find(o => o.id === (orgId || 'ORG-APEX')) || organizations[0];
-      login(targetUser, targetOrg);
-      if (role === 'Operator') {
-        navigate('/printing');
-      } else {
-        navigate('/dashboard');
-      }
-    }
-  };
-
   // Manual Lockout Override for Testing
   const handleOverrideUnlock = async () => {
     try {
@@ -448,22 +414,22 @@ export const LoginPage: React.FC = () => {
               </div>
             )}
 
-            {/* Field 2: Login / Email (Direct pill style like screenshot) */}
+            {/* Field 2: Login Identifier (Username or Email) */}
             <div>
               <label className="text-xs font-bold text-[#0d3b75] ml-3 mb-1.5 block">
-                {activeTab === 'superadmin' ? 'SuperAdmin Master Email' : 'Login Email'}
+                {activeTab === 'superadmin' ? 'SuperAdmin Master Email' : 'Username or Email'}
               </label>
               <div className="relative flex items-center bg-[#f7faff] border border-[#d2e2f3] rounded-full overflow-hidden focus-within:border-[#0088ff] focus-within:ring-2 focus-within:ring-[#0088ff]/20">
                 <div className="w-11 h-11 flex items-center justify-center border-r border-[#dbe7f5] text-[#0080ff] shrink-0">
                   <Mail className="w-4 h-4" />
                 </div>
                 <input
-                  type="email"
+                  type="text"
                   required
                   value={email}
                   onChange={(e) => handleEmailChange(e.target.value)}
                   onBlur={handleEmailBlur}
-                  placeholder={activeTab === 'superadmin' ? 'superadmin@camelcomm.in' : 'name@pharma.com'}
+                  placeholder={activeTab === 'superadmin' ? 'superadmin@camelcomm.in' : 'username or email@company.com'}
                   className="flex-1 bg-transparent px-3.5 py-2.5 text-xs text-[#0d3b75] font-medium placeholder:text-[#9ab1ce] focus:outline-none"
                 />
                 {email && (
@@ -588,78 +554,6 @@ export const LoginPage: React.FC = () => {
             </button>
           </form>
 
-          {/* 1-Click Fast Demo Login Matrix (Matching Light UI) */}
-          <div className="mt-6 pt-5 border-t border-[#e2edfa]">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[10px] font-black uppercase tracking-wider text-[#0d3b75] flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-amber-500" />
-                1-Click Quick Demo Sign In
-              </span>
-              <span className="text-[10px] text-[#718dae] font-semibold">Instant Test</span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 text-left">
-              {/* Card 1: Camel SuperAdmin */}
-              <button
-                type="button"
-                onClick={() => handleQuickDemoLogin('SuperAdmin')}
-                className="p-2.5 rounded-2xl bg-[#faf5ff] hover:bg-[#f3e8ff] border border-purple-200 hover:border-purple-300 transition text-left group"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-purple-900 truncate">Camel Admin</span>
-                  <span className="text-[8px] font-bold px-1.5 py-0.2 bg-purple-200/80 text-purple-800 rounded-full">
-                    SaaS
-                  </span>
-                </div>
-                <div className="text-[9px] text-purple-600 truncate mt-0.5">Platform Owner</div>
-              </button>
-
-              {/* Card 2: Plant Admin */}
-              <button
-                type="button"
-                onClick={() => handleQuickDemoLogin('Admin', 'ORG-APEX')}
-                className="p-2.5 rounded-2xl bg-[#f0f7ff] hover:bg-[#e0efff] border border-blue-200 hover:border-blue-300 transition text-left group"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-blue-900 truncate">Plant Admin</span>
-                  <span className="text-[8px] font-bold px-1.5 py-0.2 bg-blue-200/80 text-blue-800 rounded-full">
-                    IT Head
-                  </span>
-                </div>
-                <div className="text-[9px] text-blue-600 truncate mt-0.5">Vikram Joshi</div>
-              </button>
-
-              {/* Card 3: QA Supervisor */}
-              <button
-                type="button"
-                onClick={() => handleQuickDemoLogin('Supervisor', 'ORG-APEX')}
-                className="p-2.5 rounded-2xl bg-[#f0fdf4] hover:bg-[#dcfce7] border border-emerald-200 hover:border-emerald-300 transition text-left group"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-emerald-900 truncate">QA Supervisor</span>
-                  <span className="text-[8px] font-bold px-1.5 py-0.2 bg-emerald-200/80 text-emerald-800 rounded-full">
-                    Checker
-                  </span>
-                </div>
-                <div className="text-[9px] text-emerald-600 truncate mt-0.5">Dr. Anjali Nair</div>
-              </button>
-
-              {/* Card 4: Packaging Operator */}
-              <button
-                type="button"
-                onClick={() => handleQuickDemoLogin('Operator', 'ORG-APEX')}
-                className="p-2.5 rounded-2xl bg-[#fffbeb] hover:bg-[#fef3c7] border border-amber-200 hover:border-amber-300 transition text-left group"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-amber-900 truncate">Operator</span>
-                  <span className="text-[8px] font-bold px-1.5 py-0.2 bg-amber-200/80 text-amber-800 rounded-full">
-                    Floor
-                  </span>
-                </div>
-                <div className="text-[9px] text-amber-600 truncate mt-0.5">Ramesh Kumar</div>
-              </button>
-            </div>
-          </div>
         </div>
       </div>
 

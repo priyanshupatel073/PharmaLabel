@@ -9,3 +9,4 @@ export { ReportsPage } from './ReportsPage';
 export { BackupLicensePage } from './BackupLicensePage';
 export { LoginPage } from './LoginPage';
 export { SuperAdminPage } from './SuperAdminPage';
+export { UserSecurityHubPage } from './UserSecurityHubPage';

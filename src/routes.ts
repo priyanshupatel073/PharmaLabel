@@ -7,6 +7,7 @@ export type RouteId =
   | 'products'
   | 'templates'
   | 'company'
+  | 'securityHub'
   | 'audit'
   | 'reports'
   | 'backup'
@@ -61,6 +62,12 @@ export const APP_ROUTES: Record<RouteId, AppRouteConfig> = {
     path: '/company',
     title: 'Company & GS1',
     roles: ['Admin'],
+  },
+  securityHub: {
+    id: 'securityHub',
+    path: '/security-hub',
+    title: 'Users & Security',
+    roles: ['SuperAdmin', 'Admin'],
   },
   audit: {
     id: 'audit',

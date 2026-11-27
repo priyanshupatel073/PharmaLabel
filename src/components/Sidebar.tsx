@@ -5,7 +5,7 @@ import { APP_ROUTES, getRouteForTab } from '../routes';
 import {
   LayoutDashboard, Building2, Package, Layers,
   FileCode, Printer, History, BarChart3,
-  HardDriveDownload, FlaskConical, ShieldCheck
+  HardDriveDownload, FlaskConical, ShieldCheck, UserCog
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -65,6 +65,7 @@ export const Sidebar: React.FC = () => {
           heading: 'CONFIGURATION',
           items: [
             { id: 'company', label: APP_ROUTES.company.title, icon: Building2, roles: APP_ROUTES.company.roles },
+            { id: 'securityHub', label: APP_ROUTES.securityHub.title, icon: UserCog, roles: APP_ROUTES.securityHub.roles },
           ]
         },
         {

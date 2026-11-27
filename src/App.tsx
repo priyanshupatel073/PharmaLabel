@@ -16,6 +16,7 @@ import {
   BackupLicensePage,
   LoginPage,
   SuperAdminPage,
+  UserSecurityHubPage,
 } from './pages';
 
 import { useApp } from './context/AppContext';
@@ -28,6 +29,7 @@ const PAGE_COMPONENTS: Record<RouteId, React.ComponentType> = {
   products: ProductMasterPage,
   templates: TemplateDesignerPage,
   company: CompanySettingsPage,
+  securityHub: UserSecurityHubPage,
   audit: AuditTrailPage,
   reports: ReportsPage,
   backup: BackupLicensePage,

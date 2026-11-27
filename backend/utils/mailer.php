@@ -207,3 +207,119 @@ function sendOnboardingEmail(
         'log_file'      => 'backend/logs/sent_emails.log'
     ];
 }
+
+/**
+ * Dispatch Official User Credentials to newly added plant personnel (Supervisor / Operator).
+ *
+ * @param array  $user         [name, username, email, role]
+ * @param string $tempPassword Plain temporary password
+ * @param string $orgName      Plant / Organization Name
+ * @param string $adminName    Name of the Admin who created the account
+ * @param string $loginUrl     Frontend login link
+ * @return array
+ */
+function sendUserCredentialsEmail(
+    array $user,
+    string $tempPassword,
+    string $orgName,
+    string $adminName,
+    string $loginUrl = 'http://127.0.0.1:5173/login'
+): array {
+    $recipientEmail = trim((string)($user['email'] ?? ''));
+    $userName = trim((string)($user['name'] ?? 'Shopfloor Personnel'));
+    $username = trim((string)($user['username'] ?? $recipientEmail));
+    $userRole = trim((string)($user['role'] ?? 'Operator'));
+
+    if (empty($recipientEmail)) {
+        return ['success' => false, 'message' => 'No recipient email specified.'];
+    }
+
+    $subject = "PharmLabel Pro Credentials: Your {$userRole} Account for {$orgName}";
+
+    $htmlContent = '
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>' . htmlspecialchars($subject) . '</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f1f5f9; margin: 0; padding: 24px; color: #1e293b; }
+        .card { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 20px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05); }
+        .header { background: linear-gradient(135deg, #0d3b75 0%, #1e40af 100%); padding: 30px 26px; text-align: left; color: #ffffff; }
+        .logo-title { font-size: 20px; font-weight: 800; margin: 0; }
+        .badge { display: inline-block; font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 9999px; background: rgba(56, 189, 248, 0.25); color: #38bdf8; margin-left: 8px; }
+        .body { padding: 30px 26px; }
+        .cred-box { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 18px; margin: 20px 0; }
+        .cred-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed #e2e8f0; font-size: 13px; }
+        .cred-row:last-child { border-bottom: none; }
+        .cred-label { font-weight: 600; color: #64748b; }
+        .cred-val { font-weight: 700; color: #0f172a; font-family: monospace; }
+        .password-highlight { font-size: 15px; font-weight: 800; color: #2563eb; background: #dbeafe; padding: 4px 10px; border-radius: 6px; font-family: monospace; }
+        .btn-container { text-align: center; margin: 26px 0; }
+        .btn { display: inline-block; padding: 12px 28px; background: #0088ff; color: #ffffff !important; text-decoration: none; font-weight: 700; font-size: 13px; border-radius: 9999px; }
+        .footer { background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 18px 26px; text-align: center; font-size: 11px; color: #94a3b8; }
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <div class="header">
+          <h1 class="logo-title">PharmLabel <span class="badge">PRO</span></h1>
+          <div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">User Account Provisioning · ' . htmlspecialchars($orgName) . '</div>
+        </div>
+        <div class="body">
+          <p style="font-size: 14px; line-height: 1.6; color: #334155;">
+            Hello <strong>' . htmlspecialchars($userName) . '</strong>,<br><br>
+            Your plant administrator <strong>' . htmlspecialchars($adminName) . '</strong> has provisioned your <strong>' . htmlspecialchars($userRole) . '</strong> profile on PharmLabel Pro.
+          </p>
+
+          <div class="cred-box">
+            <div class="cred-row">
+              <span class="cred-label">Login Username:</span>
+              <span class="cred-val">' . htmlspecialchars($username) . '</span>
+            </div>
+            <div class="cred-row">
+              <span class="cred-label">Email Address:</span>
+              <span class="cred-val">' . htmlspecialchars($recipientEmail) . '</span>
+            </div>
+            <div class="cred-row">
+              <span class="cred-label">Assigned Role:</span>
+              <span class="cred-val">' . htmlspecialchars($userRole) . '</span>
+            </div>
+            <div class="cred-row" style="margin-top: 6px;">
+              <span class="cred-label" style="align-self: center;">Temporary Password:</span>
+              <span class="password-highlight">' . htmlspecialchars($tempPassword) . '</span>
+            </div>
+          </div>
+
+          <div class="btn-container">
+            <a href="' . htmlspecialchars($loginUrl) . '" class="btn" target="_blank">Sign In to PharmLabel Pro &rarr;</a>
+          </div>
+
+          <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 12px; font-size: 11px; color: #92400e;">
+            <strong>21 CFR Part 11 Electronic Compliance Notice:</strong><br>
+            You are required to change your temporary password upon your first sign-in. Do not share your login credentials with anyone.
+          </div>
+        </div>
+        <div class="footer">
+          &copy; ' . date('Y') . ' PharmLabel Pro · Hostinger SMTP Gateway · Confidential
+        </div>
+      </div>
+    </body>
+    </html>';
+
+    $res = sendSmtpEmail($recipientEmail, $userName, $subject, $htmlContent);
+
+    // Save log
+    $logsDir = __DIR__ . '/../logs';
+    $logEntry = "================================================================================\n";
+    $logEntry .= "TIMESTAMP : " . date('Y-m-d H:i:s T') . "\n";
+    $logEntry .= "TYPE      : USER_PROVISIONING_CREDENTIALS\n";
+    $logEntry .= "RECIPIENT : $recipientEmail ($userName)\n";
+    $logEntry .= "USERNAME  : $username\n";
+    $logEntry .= "ROLE      : $userRole\n";
+    $logEntry .= "STATUS    : " . ($res['success'] ? "DISPATCHED VIA SMTP" : "SMTP ERROR: " . $res['message']) . "\n";
+    $logEntry .= "================================================================================\n\n";
+    @file_put_contents($logsDir . '/sent_emails.log', $logEntry, FILE_APPEND | LOCK_EX);
+
+    return $res;
+}
