@@ -26,11 +26,9 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
 }) => {
   const { currentUser, login, logAudit } = useApp();
 
-  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
@@ -40,14 +38,14 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Validation checks
+  // Validation checks (US FDA 21 CFR Part 11 §11.200)
   const hasMinLength = newPassword.length >= 8;
   const hasUpper = /[A-Z]/.test(newPassword);
   const hasLower = /[a-z]/.test(newPassword);
   const hasNumber = /[0-9]/.test(newPassword);
   const hasSpecial = /[!@#$%^&*()\-_=+\[\]{};:,.<>?]/.test(newPassword);
   const passwordsMatch = newPassword.length > 0 && newPassword === confirmPassword;
-  const isFormValid = hasMinLength && hasUpper && hasLower && hasNumber && hasSpecial && passwordsMatch && currentPassword.length > 0;
+  const isFormValid = hasMinLength && hasUpper && hasLower && hasNumber && hasSpecial && passwordsMatch;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,14 +55,16 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
     setErrorMessage('');
 
     try {
+      const token = localStorage.getItem('pharmalabel_token') || localStorage.getItem('token') || '';
       const response = await fetch('/api/auth/change_password.php', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
         body: JSON.stringify({
           email: currentUser.email,
-          current_password: currentPassword,
+          user_id: currentUser.id,
           new_password: newPassword,
           confirm_password: confirmPassword
         })
@@ -108,7 +108,6 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
 
   const handleFinish = () => {
     setIsSuccess(false);
-    setCurrentPassword('');
     setNewPassword('');
     setConfirmPassword('');
     onClose();
@@ -195,31 +194,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
             )}
 
             <form onSubmit={handleSubmit} className="mt-4 space-y-3.5">
-              {/* Field 1: Current / Temp Password */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {mandatory ? 'Temporary Password Received in Email *' : 'Current Password *'}
-                </label>
-                <div className="relative flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-brand-500">
-                  <input
-                    type={showCurrent ? 'text' : 'password'}
-                    required
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    placeholder="Enter current password"
-                    className="flex-1 bg-transparent px-3.5 py-2.5 text-xs text-slate-900 font-medium focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowCurrent(!showCurrent)}
-                    className="px-3 text-slate-400 hover:text-slate-600"
-                  >
-                    {showCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Field 2: New Permanent Password */}
+              {/* Field 1: New Permanent Password */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   New Permanent Password *
@@ -243,7 +218,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
                 </div>
               </div>
 
-              {/* Field 3: Confirm Permanent Password */}
+              {/* Field 2: Confirm Permanent Password */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Confirm New Password *

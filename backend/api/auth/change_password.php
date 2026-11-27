@@ -51,9 +51,6 @@ $validationErrors = [];
 if (empty($email) && empty($userId)) {
     $validationErrors['user'] = 'User identification (email or ID) is required.';
 }
-if (empty($currentPassword)) {
-    $validationErrors['current_password'] = 'Current password is required.';
-}
 if (empty($newPassword)) {
     $validationErrors['new_password'] = 'New permanent password is required.';
 }
@@ -80,7 +77,7 @@ if (!empty($validationErrors)) {
     sendValidationError($validationErrors, 'Password validation failed.');
 }
 
-if ($currentPassword === $newPassword) {
+if (!empty($currentPassword) && $currentPassword === $newPassword) {
     sendError('New permanent password cannot be identical to the temporary password.', 422);
 }
 
@@ -102,9 +99,27 @@ try {
         sendError('User account not found.', 404);
     }
 
-    // Verify current password strictly against cryptographic bcrypt hash
-    if (!password_verify($currentPassword, $user['password_hash'])) {
-        sendError('Current password entered is incorrect.', 401);
+    // Verify current password if provided, or verify authenticated session context
+    if (!empty($currentPassword)) {
+        if (!password_verify($currentPassword, $user['password_hash'])) {
+            sendError('Current password entered is incorrect.', 401);
+        }
+    } else {
+        // When setting permanent password from an active authenticated session without re-entering temporary password:
+        $isAuthUser = $tokenUser && (
+            ($tokenUser['sub'] ?? '') === $user['id'] ||
+            strtolower((string)($tokenUser['email'] ?? '')) === strtolower((string)$user['email'])
+        );
+        $isFirstLogin = empty($user['password_changed_at']);
+
+        if (!$isAuthUser && !$isFirstLogin) {
+            sendError('Authentication required or temporary password must be provided.', 401);
+        }
+    }
+
+    // Ensure new password is not identical to current temporary password
+    if (password_verify($newPassword, $user['password_hash'])) {
+        sendError('New permanent password cannot be identical to your temporary password.', 422);
     }
 
     // Hash new password using bcrypt
