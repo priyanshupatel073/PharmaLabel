@@ -51,24 +51,20 @@ $org = $pdo->query("SELECT id, name FROM `organizations` ORDER BY id ASC LIMIT 1
 $orgId = $org['id'] ?? 'ORG-HARIHAR-265';
 echo "  Target Organization: {$org['name']} ($orgId)\n";
 
-// Ensure an Admin user exists with known password
-$adminUser = $pdo->query("SELECT * FROM `users` WHERE organization_id = " . $pdo->quote($orgId) . " AND role = 'Admin' LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+// Ensure a dedicated test admin user exists without touching real production user accounts
+$testAdminUser = $pdo->query("SELECT * FROM `users` WHERE organization_id = " . $pdo->quote($orgId) . " AND username = 'test_admin_suite' LIMIT 1")->fetch(PDO::FETCH_ASSOC);
 
-if (!$adminUser) {
-    // Create one
+if (!$testAdminUser) {
     $adminPassHash = password_hash('Password@123', PASSWORD_BCRYPT);
     $pdo->exec("INSERT INTO `users` (id, organization_id, name, username, email, password_hash, role, department, status, created_at)
-        VALUES ('usr_admin_test', " . $pdo->quote($orgId) . ", 'Test Admin', 'admin', 'admin@pharmalabel.local', '$adminPassHash', 'Admin', 'IT', 'ACTIVE', NOW())");
-    $adminEmail = 'admin@pharmalabel.local';
+        VALUES ('usr_test_rbac_admin', " . $pdo->quote($orgId) . ", 'Test Suite Admin', 'test_admin_suite', 'test_suite_admin@pharmalabel.local', '$adminPassHash', 'Admin', 'IT', 'ACTIVE', NOW())");
 } else {
-    $adminEmail = $adminUser['email'];
-    // Ensure password is known
     $pdo->prepare("UPDATE `users` SET password_hash = :hash, failed_login_attempts = 0, locked_until = NULL WHERE id = :id")
-        ->execute([':hash' => password_hash('Password@123', PASSWORD_BCRYPT), ':id' => $adminUser['id']]);
+        ->execute([':hash' => password_hash('Password@123', PASSWORD_BCRYPT), ':id' => $testAdminUser['id']]);
 }
 
 $loginRes = makeRequest("$baseUrl/api/auth/login.php", 'POST', [
-    'email'           => 'admin', // Testing username login!
+    'email'           => 'test_admin_suite', // Testing username login!
     'password'        => 'Password@123',
     'organization_id' => $orgId
 ]);
