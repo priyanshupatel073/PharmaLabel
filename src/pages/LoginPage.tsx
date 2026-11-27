@@ -99,6 +99,9 @@ export const LoginPage: React.FC = () => {
             setErrorMessage(`Account (${email}) is locked in database (21 CFR Part 11). Please wait (${sec}s remaining).`);
           } else {
             setActiveLockout(0);
+            if (json?.data?.failed_attempts === 0) {
+              clearLockoutForEmail(emailKey);
+            }
           }
         })
         .catch(() => {});
