@@ -159,6 +159,15 @@ export const UserSecurityHubPage: React.FC = () => {
   const [isSendingEod, setIsSendingEod] = useState(false);
   const [isTestingSmtp, setIsTestingSmtp] = useState(false);
 
+  // Helper to obtain authorization headers with the active bearer token
+  const getAuthHeaders = (): Record<string, string> => {
+    const token = localStorage.getItem('pharmalabel_token') || localStorage.getItem('token') || '';
+    return {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    };
+  };
+
   // --------------------------------------------------------------------------
   // INITIAL DATA FETCHING
   // --------------------------------------------------------------------------
@@ -168,11 +177,7 @@ export const UserSecurityHubPage: React.FC = () => {
     setLoading(true);
     setErrorMessage('');
     try {
-      const token = localStorage.getItem('token') || '';
-      const headers = {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {})
-      };
+      const headers = getAuthHeaders();
 
       // 1. Fetch Users
       const usersRes = await fetch(`/api/company/users.php?organization_id=${encodeURIComponent(orgId)}`, { headers });
@@ -183,6 +188,11 @@ export const UserSecurityHubPage: React.FC = () => {
           if (data.data.length > 0 && !selectedUserId) {
             setSelectedUserId(data.data[0].id);
           }
+        }
+      } else {
+        const errData = await usersRes.json().catch(() => null);
+        if (errData && errData.message) {
+          setErrorMessage(errData.message);
         }
       }
 
@@ -259,13 +269,9 @@ export const UserSecurityHubPage: React.FC = () => {
     setLoading(true);
     setErrorMessage('');
     try {
-      const token = localStorage.getItem('token') || '';
       const res = await fetch(`/api/company/permissions.php?organization_id=${encodeURIComponent(orgId)}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           permission_matrix: permissionMatrix,
           advance_permissions: advancePermissions
@@ -288,13 +294,9 @@ export const UserSecurityHubPage: React.FC = () => {
     if (!window.confirm('Reset all roles to 21 CFR Part 11 standard GxP defaults?')) return;
     setLoading(true);
     try {
-      const token = localStorage.getItem('token') || '';
       const res = await fetch(`/api/company/permissions.php?organization_id=${encodeURIComponent(orgId)}&action=reset`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        }
+        headers: getAuthHeaders()
       });
       const data = await res.json();
       if (data.success) {
@@ -312,13 +314,9 @@ export const UserSecurityHubPage: React.FC = () => {
     if (!newRoleName.trim()) return;
     setLoading(true);
     try {
-      const token = localStorage.getItem('token') || '';
       const res = await fetch(`/api/company/permissions.php?organization_id=${encodeURIComponent(orgId)}&action=add_role`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           role_name: newRoleName.trim(),
           permissions: ['print_labels'],
@@ -344,13 +342,9 @@ export const UserSecurityHubPage: React.FC = () => {
   const handleSaveAdvancePermissions = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token') || '';
       const res = await fetch(`/api/company/permissions.php?organization_id=${encodeURIComponent(orgId)}&action=save_advance`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ advance_permissions: advancePermissions })
       });
       const data = await res.json();
@@ -375,13 +369,9 @@ export const UserSecurityHubPage: React.FC = () => {
     setLoading(true);
     setErrorMessage('');
     try {
-      const token = localStorage.getItem('token') || '';
       const res = await fetch(`/api/company/users.php?organization_id=${encodeURIComponent(orgId)}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           username: newUserForm.username,
           name: newUserForm.name,
@@ -429,13 +419,9 @@ export const UserSecurityHubPage: React.FC = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const token = localStorage.getItem('token') || '';
       const res = await fetch(`/api/company/users.php?organization_id=${encodeURIComponent(orgId)}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(editUserForm)
       });
       const data = await res.json();
@@ -470,13 +456,9 @@ export const UserSecurityHubPage: React.FC = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const token = localStorage.getItem('token') || '';
       const res = await fetch(`/api/company/users.php?organization_id=${encodeURIComponent(orgId)}&action=reset_password`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           user_id: resetPasswordForm.userId,
           new_password: resetPasswordForm.autoGenerate ? '' : resetPasswordForm.newPassword
@@ -506,13 +488,9 @@ export const UserSecurityHubPage: React.FC = () => {
   const handleSaveSecurityPolicy = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token') || '';
       const res = await fetch(`/api/company/security_policy.php?organization_id=${encodeURIComponent(orgId)}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(securityPolicy)
       });
       const data = await res.json();
@@ -534,13 +512,9 @@ export const UserSecurityHubPage: React.FC = () => {
   const handleSaveSmtpSettings = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token') || '';
       const res = await fetch(`/api/company/smtp_settings.php?organization_id=${encodeURIComponent(orgId)}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(smtpSettings)
       });
       const data = await res.json();
@@ -560,13 +534,9 @@ export const UserSecurityHubPage: React.FC = () => {
     setIsTestingSmtp(true);
     setErrorMessage('');
     try {
-      const token = localStorage.getItem('token') || '';
       const res = await fetch(`/api/company/smtp_settings.php?organization_id=${encodeURIComponent(orgId)}&action=test`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ test_email: testEmailAddress || smtpSettings.admin_alert_email })
       });
       const data = await res.json();
@@ -586,13 +556,9 @@ export const UserSecurityHubPage: React.FC = () => {
     setIsSendingEod(true);
     setErrorMessage('');
     try {
-      const token = localStorage.getItem('token') || '';
       const res = await fetch(`/api/audit/eod_report.php?organization_id=${encodeURIComponent(orgId)}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        }
+        headers: getAuthHeaders()
       });
       const data = await res.json();
       if (data.success) {

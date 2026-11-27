@@ -115,6 +115,12 @@ function authenticateRequest(bool $exitOnError = true): ?array
     if (!empty($authHeader) && preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
         $token = trim($matches[1]);
     }
+    if (empty($token) && !empty($_GET['token'])) {
+        $token = trim((string)$_GET['token']);
+    }
+    if (empty($token) && !empty($_COOKIE['pharmalabel_token'])) {
+        $token = trim((string)$_COOKIE['pharmalabel_token']);
+    }
 
     $userPayload = !empty($token) ? verifyToken($token) : null;
 

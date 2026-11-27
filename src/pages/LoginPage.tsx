@@ -223,6 +223,7 @@ export const LoginPage: React.FC = () => {
 
         if (res.data?.token) {
           localStorage.setItem('pharmalabel_token', res.data.token);
+          localStorage.setItem('token', res.data.token);
         }
 
         const dbUser = res.data.user;
