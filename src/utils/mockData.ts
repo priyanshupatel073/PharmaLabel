@@ -1,4 +1,4 @@
-import { User, CompanySettings, Product, Batch, Drum, DrumStatus, LabelTemplate, AuditLog, LicenseInfo, Organization } from '../types';
+import { User, CompanySettings, Product, Batch, Drum, DrumStatus, LabelTemplate, TemplateAppearance, PharmaFieldItem, AuditLog, LicenseInfo, Organization } from '../types';
 
 export const INITIAL_ORGANIZATIONS: Organization[] = [
   {
@@ -294,6 +294,40 @@ export const INITIAL_BATCHES: Batch[] = [
   }
 ];
 
+export const DEFAULT_TEMPLATE_APPEARANCE: TemplateAppearance = {
+  headerFontSizePt: 16,
+  bodyFontSizePt: 10,
+  expiryType: 'EXPIRY',
+  mfgDateFormat: 'DD/MM/YYYY',
+  expiryDateFormat: 'DD/MM/YYYY',
+  labelMode: 'full',
+  headerBgColor: '#0b2b52',
+  headerFontColor: '#ffffff',
+  showHeaderBar: true,
+  showOuterBorder: true,
+  show2DBarcode: true
+};
+
+export const DEFAULT_PHARMA_FIELDS: PharmaFieldItem[] = [
+  { id: 'company_header', defaultLabel: 'Company Header & Brand Title', customLabelOverride: '', mandatory: true, included: true, order: 1 },
+  { id: 'product_name', defaultLabel: 'Name of API / Active Substance', customLabelOverride: '', mandatory: true, included: true, order: 2 },
+  { id: 'pharmacopeia', defaultLabel: 'Pharmacopeial Grade (IP / BP / USP / EP)', customLabelOverride: '', mandatory: true, included: true, order: 3 },
+  { id: 'batch_number', defaultLabel: 'Batch Number / Lot No.', customLabelOverride: '', mandatory: true, included: true, order: 4 },
+  { id: 'drum_number', defaultLabel: 'Drum Container Ref (Drum X of Y)', customLabelOverride: '', mandatory: true, included: true, order: 5 },
+  { id: 'net_weight', defaultLabel: 'Net Weight (KG)', customLabelOverride: '', mandatory: true, included: true, order: 6 },
+  { id: 'gross_weight', defaultLabel: 'Gross Weight (KG)', customLabelOverride: '', mandatory: true, included: true, order: 7 },
+  { id: 'tare_weight', defaultLabel: 'Tare Weight (KG)', customLabelOverride: '', mandatory: false, included: true, order: 8 },
+  { id: 'mfg_date', defaultLabel: 'Manufacturing Date (Mfg. Date)', customLabelOverride: '', mandatory: true, included: true, order: 9 },
+  { id: 'expiry_date', defaultLabel: 'Expiry / Retest Date', customLabelOverride: '', mandatory: true, included: true, order: 10 },
+  { id: 'gtin14', defaultLabel: 'GTIN-14 / Barcode Value', customLabelOverride: '', mandatory: true, included: true, order: 11 },
+  { id: 'sscc_barcode', defaultLabel: 'GS1 SSCC-18 Serialized Barcode', customLabelOverride: '', mandatory: true, included: true, order: 12 },
+  { id: 'mfg_license', defaultLabel: 'Mfg. License Number', customLabelOverride: '', mandatory: true, included: true, order: 13 },
+  { id: 'storage_conditions', defaultLabel: 'Storage Conditions & Precautions', customLabelOverride: '', mandatory: false, included: true, order: 14 },
+  { id: 'caution_text', defaultLabel: 'Safety Warning / Caution Notice', customLabelOverride: '', mandatory: false, included: true, order: 15 },
+  { id: 'country_origin', defaultLabel: 'Country of Origin & Manufacturing Site', customLabelOverride: '', mandatory: false, included: true, order: 16 },
+  { id: 'matrix_2d', defaultLabel: 'GS1 DataMatrix / 2D Digital Verification', customLabelOverride: '', mandatory: true, included: true, order: 17 }
+];
+
 export const INITIAL_TEMPLATES: LabelTemplate[] = [
   {
     id: 'tpl_standard_export',
@@ -306,6 +340,8 @@ export const INITIAL_TEMPLATES: LabelTemplate[] = [
     approver: 'Dr. Anjali Nair (Supervisor QA)',
     approvedAt: '2026-11-12 11:30:00 IST',
     changeSummary: 'Initial validated production template for 4x6" thermal drum labels.',
+    appearance: DEFAULT_TEMPLATE_APPEARANCE,
+    fields: DEFAULT_PHARMA_FIELDS,
     elements: [
       { id: 'el_header', name: 'Company Header & Logo', label: 'Company Header', enabled: true, fontSize: 'lg', isBold: true },
       { id: 'el_prod_name', name: 'Product Name & API Grade', label: 'Product Name', enabled: true, fontSize: 'xl', isBold: true },
@@ -329,6 +365,13 @@ export const INITIAL_TEMPLATES: LabelTemplate[] = [
     createdBy: 'Vikram Joshi (Admin)',
     createdAt: '2026-11-23 09:20:00 IST',
     changeSummary: 'Enlarged QR code area for high-speed automated conveyor scanning.',
+    appearance: {
+      ...DEFAULT_TEMPLATE_APPEARANCE,
+      headerFontSizePt: 18,
+      bodyFontSizePt: 11,
+      headerBgColor: '#0b2b52'
+    },
+    fields: DEFAULT_PHARMA_FIELDS,
     elements: [
       { id: 'el_header', name: 'Company Header & Logo', label: 'Company Header', enabled: true, fontSize: 'lg', isBold: true },
       { id: 'el_prod_name', name: 'Product Name & API Grade', label: 'Product Name', enabled: true, fontSize: 'xl', isBold: true },

@@ -43,10 +43,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
     } else {
       simulateFailedLogin();
       setErrorMessage(
-        `Invalid credentials. Warning: ${
-          4 - failedLoginAttempts > 0
-            ? `${4 - failedLoginAttempts} attempts left before 15-min lockout.`
-            : 'Account locked out!'
+        `Invalid credentials. Warning: ${4 - failedLoginAttempts > 0
+          ? `${4 - failedLoginAttempts} attempts left before 15-min lockout.`
+          : 'Account locked out!'
         }`
       );
     }

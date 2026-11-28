@@ -66,6 +66,22 @@ export const ThermalLabelSimulator: React.FC<ThermalLabelProps> = ({
   const { canDownloadLabelCopy, logAudit } = useApp();
   const canDownload = canDownloadLabelCopy();
 
+  const appearance = label.appearance;
+  const fieldOverrides = label.fieldOverrides || {};
+
+  const getFieldLabel = (fieldId: string, fallback: string): string => {
+    return fieldOverrides[fieldId] || fallback;
+  };
+
+  const isPreprinted = appearance?.labelMode === 'preprinted';
+  const showOuterBorder = appearance?.showOuterBorder !== false;
+  const showHeaderBar = appearance?.showHeaderBar !== false;
+  const headerBgColor = appearance?.headerBgColor || '#0b2b52';
+  const headerFontColor = appearance?.headerFontColor || '#ffffff';
+  const expiryHeader = appearance?.expiryType === 'RETEST'
+    ? getFieldLabel('expiry_date', 'RETEST DATE')
+    : getFieldLabel('expiry_date', 'EXP DATE');
+
   const handleDownloadCopy = () => {
     if (!canDownload) {
       alert('Access Denied: Advance permission "Download Label Copy" is required for your role. Please request access from your Plant Administrator in Users & Security.');
@@ -162,7 +178,7 @@ export const ThermalLabelSimulator: React.FC<ThermalLabelProps> = ({
       {/* Simulated thermal container according to exact aspect ratio */}
       <div
         id="thermal-label-container"
-        className={`relative ${cfg.containerClass} bg-white border-2 border-slate-900 rounded-sm text-slate-950 font-sans shadow-md select-none overflow-hidden flex flex-col justify-between`}
+        className={`relative ${cfg.containerClass} bg-white ${showOuterBorder ? 'border-2 border-slate-900' : 'border border-dashed border-slate-300'} rounded-sm text-slate-950 font-sans shadow-md select-none overflow-hidden flex flex-col justify-between`}
         style={{ fontFamily: "'Inter', sans-serif" }}
       >
         {watermarkNode}
@@ -355,32 +371,41 @@ export const ThermalLabelSimulator: React.FC<ThermalLabelProps> = ({
           /* ----------------- 4x6 PORTRAIT & 4x4 SQUARE LAYOUT ----------------- */
           <>
             {/* Top Header Block: Company & Lic No */}
-            <div className="border-b-2 border-slate-900 pb-2 flex items-start justify-between">
-              <div>
-                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
-                  MANUFACTURER & LICENSED TRACEABILITY
+            {showHeaderBar ? (
+              <div
+                className="border-b-2 border-slate-900 pb-2 flex items-start justify-between p-2.5 -mx-4 -mt-4 mb-2"
+                style={appearance?.headerBgColor ? { backgroundColor: headerBgColor, color: headerFontColor } : {}}
+              >
+                <div>
+                  <div className="text-[9px] font-bold uppercase tracking-wider opacity-80">
+                    {getFieldLabel('company_header', 'MANUFACTURER & LICENSED TRACEABILITY')}
+                  </div>
+                  <div className="text-sm font-extrabold tracking-tight">
+                    {label.companyName}
+                  </div>
+                  <div className="text-[10px] font-mono opacity-90">
+                    {getFieldLabel('mfg_license', 'Mfg Lic No')}: <span className="font-semibold">{label.mfgLicenseNumber}</span>
+                  </div>
                 </div>
-                <div className="text-sm font-extrabold tracking-tight text-slate-900">
-                  {label.companyName}
-                </div>
-                <div className="text-[10px] font-mono text-slate-700">
-                  Mfg Lic No: <span className="font-semibold">{label.mfgLicenseNumber}</span>
+                <div className="text-right">
+                  <span className="inline-block px-1.5 py-0.5 text-[10px] font-mono font-bold bg-white/20 backdrop-blur-xs rounded-xs">
+                    REV {label.templateRevision}
+                  </span>
+                  <div className="text-[9px] font-mono font-bold opacity-80 mt-0.5">
+                    {label.dimension}&quot; THERMAL
+                  </div>
                 </div>
               </div>
-              <div className="text-right">
-                <span className="inline-block px-1.5 py-0.5 text-[10px] font-mono font-bold bg-slate-900 text-white rounded-xs">
-                  REV {label.templateRevision}
-                </span>
-                <div className="text-[9px] font-mono font-bold text-indigo-700 mt-0.5">
-                  {label.dimension}&quot; THERMAL
-                </div>
+            ) : isPreprinted ? (
+              <div className="border border-dashed border-slate-300 p-2 -mx-4 -mt-4 mb-2 text-center text-[9px] font-mono text-slate-400">
+                [ PRE-PRINTED COMPANY HEADER AREA ]
               </div>
-            </div>
+            ) : null}
 
             {/* Product Identity Block */}
             <div className="py-2 border-b border-slate-900">
               <div className="text-[10px] uppercase font-bold text-slate-500">
-                PRODUCT / ACTIVE PHARMACEUTICAL INGREDIENT
+                {getFieldLabel('product_name', 'PRODUCT / ACTIVE PHARMACEUTICAL INGREDIENT')}
               </div>
               <div className="text-base font-black uppercase leading-tight text-slate-950">
                 {label.productName}
@@ -395,32 +420,32 @@ export const ThermalLabelSimulator: React.FC<ThermalLabelProps> = ({
             <div className="grid grid-cols-2 gap-2 py-2 border-b-2 border-slate-900 text-[11px]">
               <div className="border-r border-slate-300 pr-2 space-y-1">
                 <div className="flex justify-between">
-                  <span className="text-slate-600">BATCH / LOT:</span>
+                  <span className="text-slate-600">{getFieldLabel('batch_number', 'BATCH / LOT')}:</span>
                   <strong className="font-mono text-xs">{label.batchNumber}</strong>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-600">DRUM NO:</span>
+                  <span className="text-slate-600">{getFieldLabel('drum_number', 'DRUM NO')}:</span>
                   <strong className="font-mono text-sm bg-slate-100 px-1 rounded">
                     {label.drumNumber} of {label.totalDrums}
                   </strong>
                 </div>
                 <div className="flex justify-between pt-1 border-t border-slate-200">
-                  <span className="text-slate-600">MFG DATE:</span>
+                  <span className="text-slate-600">{getFieldLabel('mfg_date', 'MFG DATE')}:</span>
                   <span className="font-mono font-semibold">{label.mfgDate}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-600">EXP DATE:</span>
+                  <span className="text-slate-600">{expiryHeader}:</span>
                   <span className="font-mono font-semibold">{label.expiryDate}</span>
                 </div>
               </div>
 
               <div className="pl-1 space-y-1">
                 <div className="flex justify-between">
-                  <span className="text-slate-600">NET WEIGHT:</span>
+                  <span className="text-slate-600">{getFieldLabel('net_weight', 'NET WEIGHT')}:</span>
                   <strong className="font-mono text-sm">{label.netWeight.toFixed(2)} KG</strong>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-600">GROSS WT:</span>
+                  <span className="text-slate-600">{getFieldLabel('gross_weight', 'GROSS WT')}:</span>
                   <span className="font-mono font-semibold text-xs">{label.grossWeight.toFixed(2)} KG</span>
                 </div>
                 <div className="flex justify-between pt-1 border-t border-slate-200">

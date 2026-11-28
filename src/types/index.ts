@@ -109,6 +109,29 @@ export interface Batch {
 export type TemplateStatus = 'Draft' | 'In Review' | 'Approved/Effective' | 'Obsolete';
 export type LabelDimension = '4x6' | '6x4' | '4x4' | '3x2';
 
+export interface TemplateAppearance {
+  headerFontSizePt: number;       // e.g. 16
+  bodyFontSizePt: number;         // e.g. 10
+  expiryType: 'EXPIRY' | 'RETEST';// 'EXPIRY' vs 'RETEST'
+  mfgDateFormat: 'DD/MM/YYYY' | 'MM/YYYY' | 'MMM YYYY' | 'YYYY-MM-DD';
+  expiryDateFormat: 'DD/MM/YYYY' | 'MM/YYYY' | 'MMM YYYY' | 'YYYY-MM-DD';
+  labelMode: 'full' | 'preprinted'; // 'full' (header + data) vs 'preprinted' (data only)
+  headerBgColor: string;          // Hex e.g. '#0b2b52'
+  headerFontColor: string;        // Hex e.g. '#ffffff'
+  showHeaderBar: boolean;         // default true
+  showOuterBorder: boolean;       // default true
+  show2DBarcode: boolean;         // default true
+}
+
+export interface PharmaFieldItem {
+  id: string;                      // Unique field id (e.g. 'company_name', 'product_name', 'batch_no')
+  defaultLabel: string;            // Standard Government title e.g. 'Name of API / Active Substance'
+  customLabelOverride?: string;    // Custom Label Override e.g. 'Active Substance'
+  mandatory: boolean;              // Marked with ★ (cannot be disabled if true)
+  included: boolean;               // Toggle checkbox (Incl.)
+  order: number;                   // Sequence number 1..17
+}
+
 export interface TemplateElement {
   id: string;
   name: string;
@@ -126,6 +149,8 @@ export interface LabelTemplate {
   revision: string; // e.g., '1.0'
   status: TemplateStatus;
   elements: TemplateElement[];
+  appearance?: TemplateAppearance;
+  fields?: PharmaFieldItem[];
   createdBy: string;
   createdAt: string;
   approver?: string;
@@ -163,6 +188,8 @@ export interface LabelSnapshot {
   isWatermarked?: boolean;
   watermarkText?: string;
   watermarkColor?: 'red' | 'blue' | 'gray';
+  appearance?: TemplateAppearance;
+  fieldOverrides?: Record<string, string>;
 }
 
 export interface AuditLog {
